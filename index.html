@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>안전 코인 통합 관리 대시보드</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Noto Sans KR', sans-serif; }
+        .dashboard-card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; height: 100%; }
+        .data-input-area { width: 100%; height: 200px; font-family: monospace; font-size: 12px; border: 1px solid #ccc; padding: 10px; resize: vertical; }
+        .stat-value { font-size: 2rem; font-weight: bold; color: #0d6efd; }
+        .loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:9999; display:none; justify-content:center; align-items:center; flex-direction:column;}
+        table { font-size: 0.9rem; }
+        th { background-color: #e9ecef !important; position: sticky; top: 0; }
+        .table-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #dee2e6; }
+    </style>
+</head>
+<body>
+
+    <div id="loading" class="loading-overlay">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+        <h4 class="mt-3">데이터 분석 중입니다...</h4>
+        <p>데이터 양에 따라 시간이 소요될 수 있습니다.</p>
+    </div>
+
+    <nav class="navbar navbar-dark bg-dark mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">🛡️ 안전 코인 통합 관리 대시보드</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-4">
+        
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="dashboard-card">
+                    <h5>📂 데이터 입력 (Master File)</h5>
+                    <p class="text-muted small mb-2">
+                        엑셀의 <strong>[Passport no | Company | Name | Designation | Iqama No]</strong> 5개 열을 복사하여 아래에 붙여넣으세요. (2만행 이상 가능)
+                    </p>
+                    <textarea id="pasteArea" class="data-input-area" placeholder="여기에 엑셀 데이터를 붙여넣기 (Ctrl+V) 하세요..."></textarea>
+                    <div class="d-flex justify-content-end mt-3 gap-2">
+                        <button class="btn btn-secondary" onclick="clearInput()">초기화</button>
+                        <button class="btn btn-primary px-4" onclick="processData()">📊 분석 시작</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboardArea" style="display:none;">
+            
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="dashboard-card text-center">
+                        <h6>총 분석 인원</h6>
+                        <div class="stat-value" id="val_totalWorkers">0</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="dashboard-card text-center">
+                        <h6>총 지급 코인 가치</h6>
+                        <div class="stat-value text-success" id="val_totalValue">0</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="dashboard-card text-center">
+                        <h6>코인 회수율(사용)</h6>
+                        <div class="stat-value text-warning" id="val_usageRate">0%</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="dashboard-card text-center">
+                        <h6>지급 건수</h6>
+                        <div class="stat-value text-info" id="val_totalLogs">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <div class="dashboard-card">
+                        <h6>🏢 업체별 코인 획득 현황 (Top 10)</h6>
+                        <canvas id="companyChart"></canvas>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="dashboard-card">
+                        <h6>🏆 지급 사유별 빈도 (Top 5)</h6>
+                        <canvas id="reasonChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="dashboard-card">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6>📋 근로자별 상세 분석 결과 (미리보기: 상위 100명)</h6>
+                            <button class="btn btn-success" onclick="downloadExcel()">
+                                📥 전체 결과 엑셀 다운로드
+                            </button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table class="table table-striped table-hover" id="resultTable">
+                                <thead>
+                                    <tr>
+                                        <th>Passport No</th>
+                                        <th>Company</th>
+                                        <th>Name</th>
+                                        <th>Designation</th>
+                                        <th>지급 건수</th>
+                                        <th>총 코인 가치</th>
+                                        <th>사용 코인</th>
+                                        <th>잔여 코인</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ▼▼▼ 여기에 배포한 GAS URL을 입력하세요 ▼▼▼
+        const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzopWOMzZTKDHvgR_n027ftHdBQSoBI1x3od2oGeAwElUT0BPfr0Tsy-rU4o8P4Yjf8/exec"; 
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+        let FINAL_DATA = []; // 엑셀 다운로드용 전체 데이터
+        let CHART_INSTANCES = {};
+
+        // 1. 데이터 파싱 및 처리 메인 함수
+        async function processData() {
+            const inputVal = document.getElementById('pasteArea').value;
+            if (!inputVal.trim()) {
+                alert("데이터를 입력해주세요.");
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'flex';
+
+            try {
+                // A. 마스터 파일 파싱 (PapaParse 사용)
+                // 탭(\t)으로 구분된 엑셀 데이터 파싱
+                const parsed = Papa.parse(inputVal, { delimiter: "\t", header: false });
+                const masterRows = parsed.data; // 2차원 배열
+
+                // B. GAS에서 Logs, Categories 가져오기
+                const response = await fetch(GAS_API_URL);
+                const cloudData = await response.json();
+                
+                // C. 데이터 결합 및 계산 시작
+                analyzeData(masterRows, cloudData.logs, cloudData.categories);
+
+            } catch (error) {
+                console.error(error);
+                alert("데이터 처리 중 오류가 발생했습니다: " + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // 2. 분석 로직 (핵심)
+        function analyzeData(masterData, logsData, categoriesData) {
+            
+            // [Step 1] 카테고리 맵핑 만들기 (Reason Set -> Quantity)
+            // Categories 헤더: Top_KO, Bottom_KO, Top_EN, Bottom_EN, Quantity
+            // 키 생성 로직: "Top_KO|Bottom_KO|Top_EN|Bottom_EN"
+            const categoryMap = {};
+            // 첫 줄(헤더) 제외하고 순회
+            for(let i=1; i<categoriesData.length; i++) {
+                const row = categoriesData[i];
+                // 데이터가 비어있지 않은지 확인
+                if(!row[0]) continue; 
+                const key = `${row[0]}|${row[1]}|${row[2]}|${row[3]}`;
+                const quantity = Number(row[4]) || 0;
+                categoryMap[key] = quantity;
+            }
+
+            // [Step 2] Logs 데이터 집계 (Passport No 기준)
+            // Logs 헤더 순서(0부터): ... Passport_No(3), Coin_No(4), Top_KO(5), Bottom_KO(6), Top_EN(7), Bottom_EN(8) ...
+            const logStats = {}; 
+            const reasonStats = {}; // 사유별 건수 통계용
+
+            for(let i=1; i<logsData.length; i++) {
+                const row = logsData[i];
+                const ppt = String(row[3]).trim(); // Passport No
+                const coinNo = String(row[4]);
+                
+                // 사유 Key 생성
+                const reasonKey = `${row[5]}|${row[6]}|${row[7]}|${row[8]}`;
+                const coinValue = categoryMap[reasonKey] || 0; // 카테고리 맵에서 가치 찾기 (없으면 0)
+
+                // 사용 여부 확인 (Coin_No에 '*'가 포함되면 사용된 것)
+                const isUsed = coinNo.includes('*');
+
+                if (!logStats[ppt]) {
+                    logStats[ppt] = { count: 0, totalValue: 0, usedCount: 0 };
+                }
+                
+                logStats[ppt].count += 1; // 지급 건수
+                logStats[ppt].totalValue += coinValue; // 코인 가치 합산
+                if (isUsed) logStats[ppt].usedCount += 1; // 사용 개수
+
+                // 전체 사유 통계 (건수 기준)
+                const reasonName = `${row[5]} (${row[6]})`; // 표시는 한글 위주로
+                reasonStats[reasonName] = (reasonStats[reasonName] || 0) + 1;
+            }
+
+            // [Step 3] Master 데이터와 결합
+            FINAL_DATA = [];
+            const companyStats = {}; // 회사별 통계용
+
+            // masterData[0]은 헤더일 가능성이 높음. 입력값에 따라 다를 수 있으나 보통 첫줄 제외
+            // 입력창에 헤더를 포함해서 넣었는지 체크 필요하지만, 여기서는 그냥 다 돌리고 
+            // Passport 형식이 아닌 행은 스킵하는 식으로 처리
+            
+            masterData.forEach((row, idx) => {
+                if (row.length < 5) return; // 빈 줄 무시
+
+                const ppt = String(row[0]).trim();
+                const company = row[1];
+                const name = row[2];
+                const designation = row[3];
+                const iqama = row[4];
+
+                // 헤더줄 처리 (Passport란 단어가 있으면 스킵)
+                if (String(ppt).toLowerCase().includes('passport')) return;
+
+                // Logs 집계에서 데이터 찾기
+                const stat = logStats[ppt] || { count: 0, totalValue: 0, usedCount: 0 };
+
+                const rowData = {
+                    Passport_No: ppt,
+                    Company: company,
+                    Name: name,
+                    Designation: designation,
+                    Iqama_No: iqama,
+                    Log_Count: stat.count,
+                    Total_Coin_Value: stat.totalValue,
+                    Used_Coins: stat.usedCount,
+                    Remaining_Coins: stat.totalValue - stat.usedCount // 잔액(단순 가치-사용개수는 아니지만 일단 로직상 표기)
+                    // 주의: 사용된 코인의 가치를 빼야 정확한 잔액이지만, 
+                    // 질문 내용상 코인 1개 = 1개 차감 개념이면 (Total Value - Used Count)는 단위가 안 맞을 수 있음.
+                    // 여기서는 "보유 코인 개수"가 아니라 "코인 가치" 통계이므로, 
+                    // 사용된 코인의 가치를 추적할 수 없다면(Log에 가치가 안 적혀있으니)
+                    // 잔여 코인 계산은 '개수' 기준으로 할지 '가치' 기준으로 할지 모호함.
+                    // -> [수정] 질문의 의도: Quantity는 지급 개수. 즉 Value = 개수. 
+                    // 따라서 (총 받은 개수 - 사용한 개수) = 잔여 개수. 이게 맞음.
+                };
+                FINAL_DATA.push(rowData);
+
+                // 회사별 집계
+                companyStats[company] = (companyStats[company] || 0) + stat.totalValue;
+            });
+
+            // [Step 4] 화면 렌더링
+            renderDashboard(FINAL_DATA, companyStats, reasonStats);
+        }
+
+        // 3. 화면 그리기 및 차트 생성
+        function renderDashboard(data, companyStats, reasonStats) {
+            document.getElementById('dashboardArea').style.display = 'block';
+
+            // A. 상단 요약 카드
+            const totalWorkers = data.length;
+            const totalValue = data.reduce((sum, item) => sum + item.Total_Coin_Value, 0);
+            const totalUsed = data.reduce((sum, item) => sum + item.Used_Coins, 0);
+            const totalLogs = data.reduce((sum, item) => sum + item.Log_Count, 0);
+            
+            // 사용률 계산 (지급된 총 개수 대비 사용된 개수) -> Total Value가 곧 총 개수라 가정
+            const usageRate = totalValue === 0 ? 0 : ((totalUsed / totalValue) * 100).toFixed(1);
+
+            document.getElementById('val_totalWorkers').innerText = totalWorkers.toLocaleString() + "명";
+            document.getElementById('val_totalValue').innerText = totalValue.toLocaleString() + "개";
+            document.getElementById('val_usageRate').innerText = usageRate + "%";
+            document.getElementById('val_totalLogs').innerText = totalLogs.toLocaleString() + "건";
+
+            // B. 테이블 채우기 (상위 100개만)
+            const tbody = document.querySelector('#resultTable tbody');
+            tbody.innerHTML = "";
+            data.slice(0, 100).forEach(row => {
+                const tr = `<tr>
+                    <td>${row.Passport_No}</td>
+                    <td>${row.Company}</td>
+                    <td>${row.Name}</td>
+                    <td>${row.Designation}</td>
+                    <td>${row.Log_Count}</td>
+                    <td class="fw-bold">${row.Total_Coin_Value}</td>
+                    <td class="text-danger">${row.Used_Coins}</td>
+                    <td class="text-primary">${row.Total_Coin_Value - row.Used_Coins}</td>
+                </tr>`;
+                tbody.innerHTML += tr;
+            });
+
+            // C. 차트 그리기
+            drawCharts(companyStats, reasonStats);
+        }
+
+        function drawCharts(companyStats, reasonStats) {
+            // 기존 차트 파괴 (재분석 시)
+            if (CHART_INSTANCES.company) CHART_INSTANCES.company.destroy();
+            if (CHART_INSTANCES.reason) CHART_INSTANCES.reason.destroy();
+
+            // 1. 업체별 차트 (Top 10)
+            const sortedCompany = Object.entries(companyStats)
+                .sort((a, b) => b[1] - a[1]) // 내림차순 정렬
+                .slice(0, 10);
+            
+            const ctxComp = document.getElementById('companyChart').getContext('2d');
+            CHART_INSTANCES.company = new Chart(ctxComp, {
+                type: 'bar',
+                data: {
+                    labels: sortedCompany.map(x => x[0]),
+                    datasets: [{
+                        label: '총 획득 코인 개수',
+                        data: sortedCompany.map(x => x[1]),
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)'
+                    }]
+                }
+            });
+
+            // 2. 사유별 차트 (Top 5)
+            const sortedReason = Object.entries(reasonStats)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            const ctxReason = document.getElementById('reasonChart').getContext('2d');
+            CHART_INSTANCES.reason = new Chart(ctxReason, {
+                type: 'pie',
+                data: {
+                    labels: sortedReason.map(x => x[0]),
+                    datasets: [{
+                        data: sortedReason.map(x => x[1]),
+                        backgroundColor: [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'
+                        ]
+                    }]
+                }
+            });
+        }
+
+        // 4. 엑셀 다운로드 기능
+        function downloadExcel() {
+            if (FINAL_DATA.length === 0) {
+                alert("다운로드할 데이터가 없습니다.");
+                return;
+            }
+            
+            // SheetJS를 사용하여 JSON -> Excel 변환
+            const worksheet = XLSX.utils.json_to_sheet(FINAL_DATA);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "분석결과");
+            
+            // 파일명에 날짜 추가
+            const dateStr = new Date().toISOString().slice(0,10);
+            XLSX.writeFile(workbook, `안전코인_분석결과_${dateStr}.xlsx`);
+        }
+
+        function clearInput() {
+            document.getElementById('pasteArea').value = "";
+            document.getElementById('dashboardArea').style.display = "none";
+            FINAL_DATA = [];
+        }
+    </script>
+</body>
+</html>
