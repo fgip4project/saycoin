@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y COIN Data Manager (Fixed)</title>
+    <title>S.A.Y COIN Data Manager (Logs Based)</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -16,6 +16,7 @@
         .stat-val { font-size: 1.8rem; font-weight: 700; color: #2c3e50; }
         .input-area { width: 100%; height: 150px; border: 1px solid #ced4da; font-family: monospace; }
         .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.95); z-index: 9999; display: none; justify-content: center; align-items: center; }
+        .text-warn { color: #dc3545; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -23,8 +24,8 @@
     <div id="loading" class="loading-mask">
         <div class="text-center">
             <div class="spinner-border text-success" role="status"></div>
-            <h5 class="mt-3">Analyzing Data...</h5>
-            <p class="text-muted">Normalizing Passport IDs & Dates...</p>
+            <h5 class="mt-3">Aggregating All Logs...</h5>
+            <p class="text-muted">Including IDs missing from Master File</p>
         </div>
     </div>
 
@@ -39,8 +40,8 @@
             <div class="col-12">
                 <div class="card-box">
                     <h5>🛠️ Master File Input</h5>
-                    <p class="text-muted small">Required Header: <strong>Passport no | Company | Name | Designation | Iqama No</strong></p>
-                    <textarea id="pasteArea" class="input-area" placeholder="Paste Excel data here (Ctrl+V)..."></textarea>
+                    <p class="text-muted small">Header Order: <strong>Passport no | Company | Name | Designation | Iqama No</strong></p>
+                    <textarea id="pasteArea" class="input-area" placeholder="Paste Excel data here..."></textarea>
                     <div class="text-end mt-3">
                         <button class="btn btn-outline-secondary me-2" onclick="location.reload()">🔄 Reset</button>
                         <button class="btn btn-success px-4 fw-bold" onclick="processData()">🚀 Analyze</button>
@@ -74,9 +75,9 @@
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <small class="text-muted">MATCHED WORKERS</small>
+                        <small class="text-muted">ACTIVE WORKERS</small>
                         <div class="stat-val text-info" id="disp_activeWorkers">0</div>
-                        <small>Master DB: <span id="disp_totalWorkers">0</span></small>
+                        <small>From Logs: <span id="disp_logUnique">0</span> IDs</small>
                     </div>
                 </div>
             </div>
@@ -143,18 +144,22 @@
         let ANALYZED_DATA = { workers: [], companies: {}, managers: {}, reasons: {}, usageReasons: {}, monthlyLabels: [], monthlyTrend: {} };
         let CURRENT_MONTH_KEY = "";
 
-        // ★ 강력한 정규화 함수: 공백제거 + 대문자변환 + 문자열강제
-        function normalizeKey(val) {
+        // Basic ID Cleaner (No strict parsing, just trim)
+        function cleanID(val) {
             if (val === undefined || val === null) return "";
-            return String(val).replace(/\s+/g, '').toUpperCase();
+            return String(val).trim();
+        }
+
+        // Text Cleaner
+        function cleanText(val) {
+             if (val === undefined || val === null) return "";
+             return String(val).replace(/\s+/g, '').toUpperCase();
         }
         
-        // ★ 날짜 정규화 함수: 엑셀 숫자 / 문자열 모두 처리
         function getMonthKey(dateInput) {
             if (!dateInput) return "Unknown";
             let dateObj;
             if (typeof dateInput === 'number') {
-                // Excel Serial Number Logic
                 dateObj = new Date(Math.round((dateInput - 25569) * 86400 * 1000));
             } else {
                 dateObj = new Date(dateInput);
@@ -175,15 +180,24 @@
         async function processData() {
             init();
             const inputVal = document.getElementById('pasteArea').value;
-            if (!inputVal.trim()) { alert("Please paste data first."); return; }
-
+            // Allow empty input (to analyze Logs only)
+            
             document.getElementById('loading').style.display = 'flex';
             try {
-                const parsed = Papa.parse(inputVal, { delimiter: "\t", header: false });
-                const response = await fetch(GAS_URL);
-                RAW_DATA = await response.json();
-                performAnalysis(parsed.data);
+                if (!RAW_DATA.logs) {
+                    const response = await fetch(GAS_URL);
+                    RAW_DATA = await response.json();
+                }
+                
+                let masterRows = [];
+                if (inputVal.trim()) {
+                    const parsed = Papa.parse(inputVal, { delimiter: "\t", header: false });
+                    masterRows = parsed.data;
+                }
+
+                performAnalysis(masterRows);
                 renderDashboard();
+
             } catch (e) {
                 console.error(e);
                 alert("Error: " + e.message);
@@ -201,107 +215,124 @@
             const monthlySet = new Set();
             const monthlyTrend = {};
 
-            // 1. Map Categories
+            // 1. Create Master Map (Passport -> Info)
+            const masterMap = {};
+            masterRows.forEach(row => {
+                const ppt = cleanID(row[0]);
+                if (ppt && !ppt.toLowerCase().includes('passport')) {
+                    masterMap[ppt] = {
+                        Company: row[1] || "Unknown",
+                        Name: row[2] || "Unknown",
+                        Designation: row[3] || "-",
+                        Iqama: row[4] || "-"
+                    };
+                }
+            });
+
+            // 2. Map Categories
             const catMap = {};
-            RAW_DATA.categories.slice(1).forEach(row => {
-                if(!row[0]) return;
-                // Normalize Key: Remove all spaces for matching
-                const key = normalizeKey(row[0] + "|" + row[1] + "|" + row[2] + "|" + row[3]);
-                catMap[key] = Number(row[4]) || 1; 
-            });
+            if(RAW_DATA.categories) {
+                RAW_DATA.categories.slice(1).forEach(row => {
+                    if(!row[0]) return;
+                    const key = cleanText(row[0] + "|" + row[1] + "|" + row[2] + "|" + row[3]);
+                    catMap[key] = Number(row[4]) || 1; 
+                });
+            }
 
-            // 2. Map Managers
+            // 3. Map Managers
             const managerNameMap = {};
-            RAW_DATA.users.slice(1).forEach(row => {
-                managerNameMap[normalizeKey(row[0])] = row[2];
-            });
+            if(RAW_DATA.users) {
+                RAW_DATA.users.slice(1).forEach(row => {
+                    managerNameMap[cleanText(row[0])] = row[2];
+                });
+            }
 
-            // 3. Process Logs
-            RAW_DATA.logs.slice(1).forEach(row => {
-                if(!row[3]) return; // Skip if no Passport
+            // 4. Process Logs (The Source of Truth)
+            const allLogPassports = new Set();
 
-                const ts = row[0];
-                const mId = normalizeKey(row[1]); // Normalize Manager ID
-                const ppt = normalizeKey(row[3]); // ★ Normalize Passport No
-                const coinNo = String(row[4]);
-                
-                // Reason Key Gen
-                const r1 = row[5], r2 = row[6], r3 = row[7], r4 = row[8];
-                const rawReasonKey = normalizeKey(r1 + "|" + r2 + "|" + r3 + "|" + r4);
-                
-                // Calc Cases
-                const baseQty = catMap[rawReasonKey] || 1; 
-                const calculatedCase = (baseQty > 0) ? (1 / baseQty) : 0; 
-                
-                const month = getMonthKey(ts);
-                const isUsed = coinNo.includes('*');
+            if(RAW_DATA.logs) {
+                RAW_DATA.logs.slice(1).forEach(row => {
+                    if(!row[3]) return; 
 
-                monthlySet.add(month);
+                    const ts = row[0];
+                    const mId = cleanText(row[1]); 
+                    const ppt = cleanID(row[3]); // Use same cleaner
+                    const coinNo = String(row[4]);
+                    
+                    if(!ppt) return; 
+                    
+                    allLogPassports.add(ppt); // Track all IDs in Logs
 
-                // A. Worker Stats
-                if (!workers[ppt]) workers[ppt] = { cases: 0.0, qty: 0, usedQty: 0, monthly: {}, exists: true };
-                
-                workers[ppt].qty += 1; 
-                workers[ppt].cases += calculatedCase; 
-                if (isUsed) workers[ppt].usedQty += 1;
+                    const r1 = row[5], r2 = row[6], r3 = row[7], r4 = row[8];
+                    const rawReasonKey = cleanText(r1 + "|" + r2 + "|" + r3 + "|" + r4);
+                    
+                    const baseQty = catMap[rawReasonKey] || 1; 
+                    const calculatedCase = (baseQty > 0) ? (1 / baseQty) : 0; 
+                    
+                    const month = getMonthKey(ts);
+                    const isUsed = coinNo.includes('*');
+                    monthlySet.add(month);
 
-                if (!workers[ppt].monthly[month]) workers[ppt].monthly[month] = { qty: 0, cases: 0.0 };
-                workers[ppt].monthly[month].qty += 1;
-                workers[ppt].monthly[month].cases += calculatedCase;
+                    // A. Worker Stats
+                    if (!workers[ppt]) workers[ppt] = { cases: 0.0, qty: 0, usedQty: 0, monthly: {} };
+                    
+                    workers[ppt].qty += 1; 
+                    workers[ppt].cases += calculatedCase; 
+                    if (isUsed) workers[ppt].usedQty += 1;
 
-                // B. Manager Stats
-                if (!managers[mId]) managers[mId] = { 
-                    name: managerNameMap[mId] || row[2], 
-                    totalCases: 0.0, totalQty: 0, monthly: {} 
-                };
-                managers[mId].totalQty += 1;
-                managers[mId].totalCases += calculatedCase;
-                
-                if (!managers[mId].monthly[month]) managers[mId].monthly[month] = { qty: 0, cases: 0.0 };
-                managers[mId].monthly[month].qty += 1;
-                managers[mId].monthly[month].cases += calculatedCase;
+                    if (!workers[ppt].monthly[month]) workers[ppt].monthly[month] = { qty: 0, cases: 0.0 };
+                    workers[ppt].monthly[month].qty += 1;
+                    workers[ppt].monthly[month].cases += calculatedCase;
 
-                // C. Reason Stats (Keep Original Text for Excel)
-                const displayKey = rawReasonKey; // Use normalized key for grouping
-                if (!reasons[displayKey]) reasons[displayKey] = { 
-                    texts: [r1, r2, r3, r4], cases: 0.0, qty: 0 
-                };
-                reasons[displayKey].qty += 1;
-                reasons[displayKey].cases += calculatedCase;
+                    // B. Manager Stats
+                    if (!managers[mId]) managers[mId] = { name: managerNameMap[mId] || row[2], totalCases: 0.0, totalQty: 0, monthly: {} };
+                    managers[mId].totalQty += 1;
+                    managers[mId].totalCases += calculatedCase;
+                    if (!managers[mId].monthly[month]) managers[mId].monthly[month] = { qty: 0, cases: 0.0 };
+                    managers[mId].monthly[month].qty += 1;
+                    managers[mId].monthly[month].cases += calculatedCase;
 
-                // D. Trend
-                if (!monthlyTrend[month]) monthlyTrend[month] = 0;
-                monthlyTrend[month] += 1;
-            });
+                    // C. Reason Stats
+                    const displayKey = rawReasonKey;
+                    if (!reasons[displayKey]) reasons[displayKey] = { texts: [r1, r2, r3, r4], cases: 0.0, qty: 0 };
+                    reasons[displayKey].qty += 1;
+                    reasons[displayKey].cases += calculatedCase;
+
+                    // D. Trend
+                    if (!monthlyTrend[month]) monthlyTrend[month] = 0;
+                    monthlyTrend[month] += 1;
+                });
+            }
 
             // Usage Stats
-            RAW_DATA.usage.slice(1).forEach(row => {
-                const month = getMonthKey(row[0]);
-                const reason = row[5] || "Unspecified";
-                if (!usageReasons[reason]) usageReasons[reason] = { total: 0, monthly: {} };
-                usageReasons[reason].total++;
-                if (!usageReasons[reason].monthly[month]) usageReasons[reason].monthly[month] = 0;
-                usageReasons[reason].monthly[month]++;
-            });
+            if(RAW_DATA.usage) {
+                RAW_DATA.usage.slice(1).forEach(row => {
+                    const month = getMonthKey(row[0]);
+                    const reason = row[5] || "Unspecified";
+                    if (!usageReasons[reason]) usageReasons[reason] = { total: 0, monthly: {} };
+                    usageReasons[reason].total++;
+                    if (!usageReasons[reason].monthly[month]) usageReasons[reason].monthly[month] = 0;
+                    usageReasons[reason].monthly[month]++;
+                });
+            }
 
-            // Merge with Master
+            // 5. Finalize Data (Merge Logs with Master Info)
             ANALYZED_DATA.workers = [];
-            masterRows.forEach(row => {
-                const rawPpt = row[0];
-                const ppt = normalizeKey(rawPpt); // ★ Normalize Master Passport
-                
-                // Skip Header
-                if (!ppt || ppt.includes('PASSPORT')) return;
+            
+            // Combine all unique passports (Logs + Master)
+            const allIDs = new Set([...allLogPassports, ...Object.keys(masterMap)]);
 
-                const comp = row[1];
-                const info = workers[ppt];
-
+            allIDs.forEach(ppt => {
+                const info = workers[ppt]; // Get stats from Logs
                 if (info) {
+                    // It has log data!
+                    const masterInfo = masterMap[ppt] || { Company: "Unknown (Not in Master)", Name: "Unknown", Designation: "-" };
+                    
                     ANALYZED_DATA.workers.push({
-                        Passport: rawPpt, // Use original for display
-                        Company: comp,
-                        Name: row[2],
-                        Designation: row[3],
+                        Passport: ppt,
+                        Company: masterInfo.Company,
+                        Name: masterInfo.Name,
+                        Designation: masterInfo.Designation,
                         Total_Cases: Math.round(info.cases),
                         Total_Qty: info.qty,
                         Used_Qty: info.usedQty,
@@ -309,11 +340,12 @@
                         Monthly_Data: info.monthly
                     });
 
-                    if (!companies[comp]) companies[comp] = { totalQty: 0, monthly: {} };
-                    companies[comp].totalQty += info.qty;
+                    const compName = masterInfo.Company;
+                    if (!companies[compName]) companies[compName] = { totalQty: 0, monthly: {} };
+                    companies[compName].totalQty += info.qty;
                     Object.keys(info.monthly).forEach(m => {
-                        if (!companies[comp].monthly[m]) companies[comp].monthly[m] = 0;
-                        companies[comp].monthly[m] += info.monthly[m].qty;
+                        if (!companies[compName].monthly[m]) companies[compName].monthly[m] = 0;
+                        companies[compName].monthly[m] += info.monthly[m].qty;
                     });
                 }
             });
@@ -351,8 +383,16 @@
             const usageRate = totalQty === 0 ? 0 : ((totalUsed / totalQty) * 100).toFixed(1);
             document.getElementById('disp_usageRate').innerText = usageRate + "%";
             document.getElementById('disp_usedCount').innerText = `Redeemed: ${totalUsed.toLocaleString()}`;
+            
             document.getElementById('disp_activeWorkers').innerText = workers.length.toLocaleString();
-            document.getElementById('disp_totalWorkers').innerText = document.getElementById('pasteArea').value.split('\n').length.toLocaleString();
+            // Show how many unique IDs found in logs
+            let logUniqueCount = 0;
+            if (RAW_DATA.logs) {
+                 const s = new Set();
+                 RAW_DATA.logs.slice(1).forEach(r => { if(r[3]) s.add(cleanID(r[3])); });
+                 logUniqueCount = s.size;
+            }
+            document.getElementById('disp_logUnique').innerText = logUniqueCount.toLocaleString();
             
             renderCharts();
             renderTable();
@@ -365,11 +405,12 @@
             const sorted = [...ANALYZED_DATA.workers].sort((a, b) => b[sortBy] - a[sortBy]).slice(0, 100);
 
             sorted.forEach(w => {
+                const unknownClass = w.Company.includes("Unknown") ? "text-warn" : "";
                 tbody.innerHTML += `
                     <tr>
-                        <td>${w.Passport}</td>
-                        <td>${w.Company}</td>
-                        <td>${w.Name}</td>
+                        <td class="${unknownClass}">${w.Passport}</td>
+                        <td class="${unknownClass}">${w.Company}</td>
+                        <td class="${unknownClass}">${w.Name}</td>
                         <td>${w.Total_Cases}</td>
                         <td class="fw-bold text-success">${w.Total_Qty}</td>
                         <td class="text-danger">${w.Used_Qty}</td>
