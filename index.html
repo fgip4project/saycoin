@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>안전 코인 월별 통합 분석 시스템</title>
+    <title>S.A.Y COIN Data Manager</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -11,28 +11,28 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
     <style>
-        body { background-color: #f0f2f5; font-family: 'Pretendard', 'Noto Sans KR', sans-serif; }
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
         .card-box { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .stat-title { font-size: 0.9rem; color: #6c757d; margin-bottom: 5px; }
+        .stat-title { font-size: 0.9rem; color: #6c757d; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-val { font-size: 1.8rem; font-weight: 700; color: #2c3e50; }
         .stat-sub { font-size: 0.85rem; color: #28a745; }
         .input-area { width: 100%; height: 150px; border: 1px solid #ced4da; border-radius: 5px; padding: 10px; font-size: 12px; font-family: monospace; }
         th { cursor: pointer; background-color: #f8f9fa; user-select: none; }
         th:hover { background-color: #e9ecef; }
-        .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.9); z-index: 9999; display: none; justify-content: center; align-items: center; flex-direction: column; }
+        .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.95); z-index: 9999; display: none; justify-content: center; align-items: center; flex-direction: column; }
     </style>
 </head>
 <body>
 
     <div id="loading" class="loading-mask">
-        <div class="spinner-border text-primary" role="status"></div>
-        <h5 class="mt-3">데이터를 분석하고 있습니다...</h5>
-        <p class="text-muted">잠시만 기다려주세요.</p>
+        <div class="spinner-border text-success" role="status"></div>
+        <h5 class="mt-3">Processing Data...</h5>
+        <p class="text-muted">Calculating Coin Qty & Cases (1/N)</p>
     </div>
 
-    <nav class="navbar navbar-dark bg-primary shadow-sm mb-4">
+    <nav class="navbar navbar-dark bg-success shadow-sm mb-4">
         <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1 fw-bold">📊 안전 코인 월별 통합 분석기</span>
+            <span class="navbar-brand mb-0 h1 fw-bold">S.A.Y COIN Data Manager</span>
         </div>
     </nav>
 
@@ -41,12 +41,12 @@
         <div class="row">
             <div class="col-12">
                 <div class="card-box">
-                    <h5>🛠️ 마스터 파일 데이터 입력</h5>
-                    <p class="text-muted small">헤더 순서: <strong>Passport no | Company | Name | Designation | Iqama No</strong> (데이터만 붙여넣어도 됩니다)</p>
-                    <textarea id="pasteArea" class="input-area" placeholder="엑셀에서 복사한 데이터를 여기에 붙여넣으세요..."></textarea>
+                    <h5>🛠️ Master File Input</h5>
+                    <p class="text-muted small">Required Header Order: <strong>Passport no | Company | Name | Designation | Iqama No</strong></p>
+                    <textarea id="pasteArea" class="input-area" placeholder="Paste Excel data here (Ctrl+V)..."></textarea>
                     <div class="text-end mt-3">
-                        <button class="btn btn-outline-secondary me-2" onclick="location.reload()">🔄 초기화</button>
-                        <button class="btn btn-primary px-4 fw-bold" onclick="processData()">🚀 데이터 분석 시작</button>
+                        <button class="btn btn-outline-secondary me-2" onclick="location.reload()">🔄 Reset</button>
+                        <button class="btn btn-success px-4 fw-bold" onclick="processData()">🚀 Analyze</button>
                     </div>
                 </div>
             </div>
@@ -57,30 +57,30 @@
             <div class="row mb-2">
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">총 지급 코인 (가치)</div>
-                        <div class="stat-val" id="disp_totalValue">0</div>
-                        <div class="stat-sub" id="disp_monthValue">이번 달: 0</div>
+                        <div class="stat-title">Total Distributed Coins</div>
+                        <div class="stat-val" id="disp_totalQty">0</div>
+                        <div class="stat-sub" id="disp_monthQty">This Month: 0</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">총 지급 건수</div>
-                        <div class="stat-val" id="disp_totalLogs">0</div>
-                        <div class="stat-sub" id="disp_monthLogs">이번 달: 0</div>
+                        <div class="stat-title">Total Cases (Calc)</div>
+                        <div class="stat-val" id="disp_totalCases">0</div>
+                        <div class="stat-sub" id="disp_monthCases">This Month: 0</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">코인 회수율 (전체)</div>
+                        <div class="stat-title">Redemption Rate (Qty)</div>
                         <div class="stat-val text-warning" id="disp_usageRate">0%</div>
-                        <div class="stat-sub" id="disp_usedCount">사용됨: 0</div>
+                        <div class="stat-sub" id="disp_usedCount">Redeemed: 0</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">지급 대상자 (이력 보유)</div>
+                        <div class="stat-title">Active Workers</div>
                         <div class="stat-val text-info" id="disp_activeWorkers">0</div>
-                        <div class="stat-sub">전체 마스터 DB: <span id="disp_totalWorkers">0</span>명</div>
+                        <div class="stat-sub">Total Master DB: <span id="disp_totalWorkers">0</span></div>
                     </div>
                 </div>
             </div>
@@ -88,13 +88,13 @@
             <div class="row mb-3">
                 <div class="col-md-8">
                     <div class="card-box" style="height: 400px;">
-                        <h6>📅 월별 코인 지급 추이 (전체)</h6>
+                        <h6>📅 Monthly Distribution Trend (Qty Base)</h6>
                         <canvas id="trendChart"></canvas>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="card-box" style="height: 400px;">
-                        <h6>🏢 회사별 점유율 (상위 5)</h6>
+                        <h6>🏢 Share by Company (Top 5)</h6>
                         <canvas id="companyChart"></canvas>
                     </div>
                 </div>
@@ -104,16 +104,15 @@
                 <div class="col-12">
                     <div class="card-box">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="mb-0">📋 근로자별 상세 분석 (상위 100명 미리보기)</h5>
+                            <h5 class="mb-0">📋 Worker Details (Top 100 Preview)</h5>
                             <div>
                                 <select id="sortSelect" class="form-select d-inline-block w-auto me-2" onchange="renderTable()">
-                                    <option value="Total_Value">코인 가치 높은순</option>
-                                    <option value="Log_Count">지급 건수 많은순</option>
-                                    <option value="Used_Value">사용 가치 높은순</option>
-                                    <option value="Remaining_Value">잔액 많은순</option>
+                                    <option value="Total_Qty">Sort by Total Coins</option>
+                                    <option value="Total_Cases">Sort by Total Cases</option>
+                                    <option value="Remaining_Qty">Sort by Remaining</option>
                                 </select>
                                 <button class="btn btn-success fw-bold" onclick="downloadFullExcel()">
-                                    📥 엑셀 전체 다운로드 (상세포함)
+                                    📥 Download Full Excel
                                 </button>
                             </div>
                         </div>
@@ -124,10 +123,10 @@
                                         <th>Passport No</th>
                                         <th>Company</th>
                                         <th>Name</th>
-                                        <th>지급 건수</th>
-                                        <th>총 획득 코인</th>
-                                        <th>사용 코인</th>
-                                        <th>잔여 코인</th>
+                                        <th>Cases (Calc)</th>
+                                        <th>Total Coins</th>
+                                        <th>Redeemed</th>
+                                        <th>Remaining</th>
                                     </tr>
                                 </thead>
                                 <tbody id="workerTableBody"></tbody>
@@ -137,27 +136,27 @@
                 </div>
             </div>
 
-        </div> </div>
+        </div>
+    </div>
 
     <script>
-        // ▼▼▼ 여기에 배포된 GAS URL을 꼭 넣어주세요 ▼▼▼
+        // ▼▼▼ INPUT YOUR GAS URL HERE ▼▼▼
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzFlddxuZi3MU_Vf9-0GL2nNsYQepD-x8FEiFNXC6mPNjAYFZU2UpSb3mTBP9grcnd3/exec"; 
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-        // 전역 변수
-        let RAW_DATA = {}; // GAS 원본
+        // Global Variables
+        let RAW_DATA = {}; 
         let ANALYZED_DATA = {
-            workers: [], // 근로자별 통계 (배열)
-            companies: {}, // 회사별 통계
-            managers: {}, // 관리자별 통계
-            reasons: {}, // 사유별 통계
-            usageReasons: {}, // 사용 사유별 통계
-            monthlyLabels: [], // 존재하는 모든 "YYYY-MM" 리스트
-            monthlyTrend: {} // 월별 전체 추세
+            workers: [], 
+            companies: {}, 
+            managers: {}, 
+            reasons: {}, 
+            usageReasons: {}, 
+            monthlyLabels: [], 
+            monthlyTrend: {} 
         };
         let CURRENT_MONTH_KEY = "";
 
-        // 1. 초기화 및 날짜 키 생성 함수
         function init() {
             const now = new Date();
             const y = now.getFullYear();
@@ -165,181 +164,186 @@
             CURRENT_MONTH_KEY = `${y}-${m}`;
         }
 
-        // 날짜 파싱 헬퍼 (ISO string or Excel serial -> YYYY-MM)
+        function safeTrim(val) {
+            if (val === undefined || val === null) return "";
+            return String(val).trim();
+        }
+
         function getMonthKey(dateInput) {
             if (!dateInput) return "Unknown";
             let dateObj;
             if (typeof dateInput === 'number') {
-                // 엑셀 날짜 시리얼 (1900년 기준) 단순 변환
                 dateObj = new Date(Math.round((dateInput - 25569)*86400*1000));
             } else {
                 dateObj = new Date(dateInput);
             }
             if (isNaN(dateObj)) return "Unknown";
-            
             const y = dateObj.getFullYear();
             const m = String(dateObj.getMonth() + 1).padStart(2, '0');
             return `${y}-${m}`;
         }
 
-        // 2. 메인 프로세스
         async function processData() {
             init();
             const inputVal = document.getElementById('pasteArea').value;
-            if (!inputVal.trim()) { alert("데이터를 붙여넣어주세요."); return; }
+            if (!inputVal.trim()) { alert("Please paste data first."); return; }
 
             document.getElementById('loading').style.display = 'flex';
 
             try {
-                // A. 마스터 파일 파싱
                 const parsed = Papa.parse(inputVal, { delimiter: "\t", header: false });
                 const masterRows = parsed.data;
 
-                // B. GAS 데이터 가져오기
                 const response = await fetch(GAS_URL);
                 RAW_DATA = await response.json();
 
-                // C. 데이터 분석 실행
                 performAnalysis(masterRows);
-
-                // D. 화면 렌더링
                 renderDashboard();
 
             } catch (e) {
                 console.error(e);
-                alert("오류 발생: " + e.message);
+                alert("An error occurred: " + e.message);
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
         }
 
-        // 3. 정밀 분석 로직
+        // ▼▼▼ ANALYSIS LOGIC ▼▼▼
         function performAnalysis(masterRows) {
-            // [초기화]
-            const workers = {}; // Key: Passport
-            const companies = {}; // Key: Company Name
-            const managers = {}; // Key: Manager ID
-            const reasons = {}; // Key: Reason Full Name
-            const usageReasons = {}; // Key: Usage Reason
+            const workers = {}; 
+            const companies = {}; 
+            const managers = {}; 
+            const reasons = {}; 
+            const usageReasons = {}; 
             const monthlySet = new Set();
             const monthlyTrend = {};
 
-            // 3-1. 카테고리 맵핑 (코인 가치 lookup)
+            // 1. Map Categories (Get Base Quantity)
             const catMap = {};
             RAW_DATA.categories.slice(1).forEach(row => {
-                // Key: Top_KO|Bottom_KO|Top_EN|Bottom_EN
-                const key = `${row[0]}|${row[1]}|${row[2]}|${row[3]}`;
-                catMap[key] = Number(row[4]) || 0;
+                if(!row[0]) return;
+                // Key: 4 text fields combined
+                const key = `${safeTrim(row[0])}|${safeTrim(row[1])}|${safeTrim(row[2])}|${safeTrim(row[3])}`;
+                catMap[key] = Number(row[4]) || 1; // Default to 1 to avoid division by zero
             });
 
-            // 3-2. 관리자 이름 맵핑
+            // 2. Map Managers
             const managerNameMap = {};
             RAW_DATA.users.slice(1).forEach(row => {
-                managerNameMap[row[0]] = row[2]; // ID -> Name
+                managerNameMap[safeTrim(row[0])] = row[2];
             });
 
-            // 3-3. Logs 데이터 순회 (핵심)
-            // Header: Timestamp(0), Manager_ID(1), Manager_Name(2), Passport_No(3), Coin_No(4), Reason(5~8)...
+            // 3. Process Logs (1 Row = 1 Coin)
             RAW_DATA.logs.slice(1).forEach(row => {
+                if(!row[3]) return;
+
                 const ts = row[0];
-                const mId = row[1];
-                const ppt = String(row[3]).trim();
+                const mId = safeTrim(row[1]);
+                const ppt = safeTrim(row[3]); 
                 const coinNo = String(row[4]);
-                const reasonKey = `${row[5]}|${row[6]}|${row[7]}|${row[8]}`;
-                const reasonName = `${row[5]} > ${row[6]}`;
                 
-                const value = catMap[reasonKey] || 0;
+                // Reason Keys
+                const r1 = safeTrim(row[5]);
+                const r2 = safeTrim(row[6]);
+                const r3 = safeTrim(row[7]);
+                const r4 = safeTrim(row[8]);
+                const reasonKey = `${r1}|${r2}|${r3}|${r4}`;
+                
+                // Get Base Quantity for this reason
+                const baseQty = catMap[reasonKey] || 1; 
+                
+                // ★ Calculation: Case = 1 / BaseQty
+                const calculatedCase = (baseQty > 0) ? (1 / baseQty) : 0; 
+                
                 const month = getMonthKey(ts);
                 const isUsed = coinNo.includes('*');
 
                 monthlySet.add(month);
 
-                // A. 근로자별 집계 (임시 저장)
+                // A. Worker Stats
                 if (!workers[ppt]) workers[ppt] = { 
-                    logs: 0, value: 0, usedVal: 0, 
-                    monthly: {}, // { '2023-10': { val: 0, logs: 0 } }
-                    exists: true 
+                    cases: 0.0, qty: 0, usedQty: 0, 
+                    monthly: {}, exists: true 
                 };
                 
                 let w = workers[ppt];
-                w.logs++;
-                w.value += value;
-                if (isUsed) w.usedVal += value; // 사용된 코인의 '가치' 누적
+                w.qty += 1;             // 1 Row = 1 Coin
+                w.cases += calculatedCase; 
+                
+                if (isUsed) w.usedQty += 1;
 
-                if (!w.monthly[month]) w.monthly[month] = { val: 0, logs: 0 };
-                w.monthly[month].val += value;
-                w.monthly[month].logs++;
+                if (!w.monthly[month]) w.monthly[month] = { qty: 0, cases: 0.0 };
+                w.monthly[month].qty += 1;
+                w.monthly[month].cases += calculatedCase;
 
-                // B. 관리자별 집계
+                // B. Manager Stats
                 if (!managers[mId]) managers[mId] = { 
                     name: managerNameMap[mId] || row[2], 
-                    totalLogs: 0, totalVal: 0, monthly: {} 
+                    totalCases: 0.0, totalQty: 0, monthly: {} 
                 };
-                managers[mId].totalLogs++;
-                managers[mId].totalVal += value;
-                if (!managers[mId].monthly[month]) managers[mId].monthly[month] = { val: 0, logs: 0 };
-                managers[mId].monthly[month].val += value;
-                managers[mId].monthly[month].logs++;
+                managers[mId].totalQty += 1;
+                managers[mId].totalCases += calculatedCase;
+                
+                if (!managers[mId].monthly[month]) managers[mId].monthly[month] = { qty: 0, cases: 0.0 };
+                managers[mId].monthly[month].qty += 1;
+                managers[mId].monthly[month].cases += calculatedCase;
 
-                // C. 지급 사유별 집계
-                if (!reasons[reasonName]) reasons[reasonName] = 0;
-                reasons[reasonName]++;
+                // C. Reason Stats (Store texts for Excel split)
+                if (!reasons[reasonKey]) reasons[reasonKey] = { 
+                    texts: [r1, r2, r3, r4], 
+                    cases: 0.0, 
+                    qty: 0 
+                };
+                reasons[reasonKey].qty += 1;
+                reasons[reasonKey].cases += calculatedCase;
 
-                // D. 월별 전체 트렌드
+                // D. Monthly Trend
                 if (!monthlyTrend[month]) monthlyTrend[month] = 0;
-                monthlyTrend[month] += value;
+                monthlyTrend[month] += 1;
             });
 
-            // 3-4. Usage 데이터 순회 (사용 사유 분석)
-            // Header: Timestamp, Manager, Name, Passport, Coin, Reason
+            // Process Usage
             RAW_DATA.usage.slice(1).forEach(row => {
                 const month = getMonthKey(row[0]);
                 const reason = row[5] || "Unspecified";
-                
                 if (!usageReasons[reason]) usageReasons[reason] = { total: 0, monthly: {} };
                 usageReasons[reason].total++;
                 if (!usageReasons[reason].monthly[month]) usageReasons[reason].monthly[month] = 0;
                 usageReasons[reason].monthly[month]++;
             });
 
-            // 3-5. Master 데이터와 근로자 데이터 병합
+            // Merge with Master Data
             ANALYZED_DATA.workers = [];
-            
             masterRows.forEach(row => {
-                // 헤더 스킵 로직 (Passport 단어 포함 시)
-                const ppt = String(row[0]).trim();
+                const ppt = safeTrim(row[0]);
+                // Skip header or empty rows
                 if (!ppt || ppt.toLowerCase().includes('passport')) return;
 
                 const comp = row[1];
-                const info = workers[ppt]; // Logs에 기록이 있는가?
+                const info = workers[ppt];
 
                 if (info) {
-                    // 기록 있는 사람만 추가
                     ANALYZED_DATA.workers.push({
                         Passport: ppt,
                         Company: comp,
                         Name: row[2],
                         Designation: row[3],
-                        Total_Logs: info.logs,
-                        Total_Value: info.value,
-                        Used_Value: info.usedVal,
-                        Remaining_Value: info.value - info.usedVal,
+                        Total_Cases: Math.round(info.cases), // Rounding cases
+                        Total_Qty: info.qty,
+                        Used_Qty: info.usedQty,
+                        Remaining_Qty: info.qty - info.usedQty,
                         Monthly_Data: info.monthly
                     });
 
-                    // 회사별 집계 (기록 있는 사람 기준)
-                    if (!companies[comp]) companies[comp] = { totalVal: 0, monthly: {} };
-                    companies[comp].totalVal += info.value;
-                    
-                    // 월별 합산
+                    if (!companies[comp]) companies[comp] = { totalQty: 0, monthly: {} };
+                    companies[comp].totalQty += info.qty;
                     Object.keys(info.monthly).forEach(m => {
                         if (!companies[comp].monthly[m]) companies[comp].monthly[m] = 0;
-                        companies[comp].monthly[m] += info.monthly[m].val;
+                        companies[comp].monthly[m] += info.monthly[m].qty;
                     });
                 }
             });
 
-            // 데이터 정리
             ANALYZED_DATA.companies = companies;
             ANALYZED_DATA.managers = managers;
             ANALYZED_DATA.reasons = reasons;
@@ -348,38 +352,35 @@
             ANALYZED_DATA.monthlyTrend = monthlyTrend;
         }
 
-        // 4. 대시보드 표시
         function renderDashboard() {
             document.getElementById('dashboard').style.display = 'block';
             
             const workers = ANALYZED_DATA.workers;
-            const totalVal = workers.reduce((sum, w) => sum + w.Total_Value, 0);
-            const totalLogs = workers.reduce((sum, w) => sum + w.Total_Logs, 0);
-            const totalUsed = workers.reduce((sum, w) => sum + w.Used_Value, 0);
+            const totalQty = workers.reduce((sum, w) => sum + w.Total_Qty, 0);
+            const totalCases = workers.reduce((sum, w) => sum + w.Total_Cases, 0);
+            const totalUsed = workers.reduce((sum, w) => sum + w.Used_Qty, 0);
 
-            // 이번 달 데이터 계산
-            let monthVal = 0;
-            let monthLogs = 0;
+            let monthQty = 0;
+            let monthCases = 0.0;
             workers.forEach(w => {
                 if (w.Monthly_Data[CURRENT_MONTH_KEY]) {
-                    monthVal += w.Monthly_Data[CURRENT_MONTH_KEY].val;
-                    monthLogs += w.Monthly_Data[CURRENT_MONTH_KEY].logs;
+                    monthQty += w.Monthly_Data[CURRENT_MONTH_KEY].qty;
+                    monthCases += w.Monthly_Data[CURRENT_MONTH_KEY].cases;
                 }
             });
 
-            // A. 요약 카드 업데이트
-            document.getElementById('disp_totalValue').innerText = totalVal.toLocaleString();
-            document.getElementById('disp_monthValue').innerText = `이번 달: ${monthVal.toLocaleString()}`;
-            document.getElementById('disp_totalLogs').innerText = totalLogs.toLocaleString();
-            document.getElementById('disp_monthLogs').innerText = `이번 달: ${monthLogs.toLocaleString()}`;
-            document.getElementById('disp_usageRate').innerText = totalVal ? ((totalUsed / totalVal)*100).toFixed(1) + "%" : "0%";
-            document.getElementById('disp_usedCount').innerText = `사용됨(가치): ${totalUsed.toLocaleString()}`;
+            document.getElementById('disp_totalQty').innerText = totalQty.toLocaleString();
+            document.getElementById('disp_monthQty').innerText = `This Month: ${monthQty.toLocaleString()}`;
+            
+            document.getElementById('disp_totalCases').innerText = totalCases.toLocaleString();
+            document.getElementById('disp_monthCases').innerText = `This Month: ${Math.round(monthCases).toLocaleString()}`;
+            
+            const usageRate = totalQty === 0 ? 0 : ((totalUsed / totalQty) * 100).toFixed(1);
+            document.getElementById('disp_usageRate').innerText = usageRate + "%";
+            document.getElementById('disp_usedCount').innerText = `Redeemed: ${totalUsed.toLocaleString()}`;
             document.getElementById('disp_activeWorkers').innerText = workers.length.toLocaleString();
             
-            // B. 차트 그리기
             renderCharts();
-
-            // C. 테이블 그리기
             renderTable();
         }
 
@@ -387,8 +388,6 @@
             const tbody = document.getElementById('workerTableBody');
             tbody.innerHTML = "";
             const sortBy = document.getElementById('sortSelect').value;
-            
-            // 정렬 후 상위 100명
             const sorted = [...ANALYZED_DATA.workers].sort((a, b) => b[sortBy] - a[sortBy]).slice(0, 100);
 
             sorted.forEach(w => {
@@ -397,38 +396,40 @@
                         <td>${w.Passport}</td>
                         <td>${w.Company}</td>
                         <td>${w.Name}</td>
-                        <td>${w.Total_Logs}</td>
-                        <td class="fw-bold text-primary">${w.Total_Value}</td>
-                        <td class="text-danger">${w.Used_Value}</td>
-                        <td class="fw-bold">${w.Remaining_Value}</td>
+                        <td>${w.Total_Cases}</td>
+                        <td class="fw-bold text-success">${w.Total_Qty}</td>
+                        <td class="text-danger">${w.Used_Qty}</td>
+                        <td class="fw-bold">${w.Remaining_Qty}</td>
                     </tr>
                 `;
             });
         }
 
         function renderCharts() {
-            // 추세 차트
             const labels = ANALYZED_DATA.monthlyLabels;
             const trendData = labels.map(m => ANALYZED_DATA.monthlyTrend[m] || 0);
             
+            const chartStatus = Chart.getChart("trendChart"); 
+            if (chartStatus != undefined) { chartStatus.destroy(); }
+            const chartCompStatus = Chart.getChart("companyChart");
+            if (chartCompStatus != undefined) { chartCompStatus.destroy(); }
+
             new Chart(document.getElementById('trendChart'), {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: '월별 총 지급 가치',
+                        label: 'Monthly Distributed Coins (Qty)',
                         data: trendData,
-                        borderColor: '#0d6efd',
-                        tension: 0.3,
-                        fill: true,
-                        backgroundColor: 'rgba(13, 110, 253, 0.1)'
+                        borderColor: '#198754',
+                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                        fill: true
                     }]
                 }
             });
 
-            // 회사별 차트
             const compEntries = Object.entries(ANALYZED_DATA.companies)
-                .sort((a, b) => b[1].totalVal - a[1].totalVal)
+                .sort((a, b) => b[1].totalQty - a[1].totalQty)
                 .slice(0, 5);
             
             new Chart(document.getElementById('companyChart'), {
@@ -436,86 +437,96 @@
                 data: {
                     labels: compEntries.map(x => x[0]),
                     datasets: [{
-                        data: compEntries.map(x => x[1].totalVal),
+                        data: compEntries.map(x => x[1].totalQty),
                         backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b']
                     }]
                 }
             });
         }
 
-        // 5. 엑셀 다운로드 (멀티 시트 & 피벗)
+        // ▼▼▼ EXCEL DOWNLOAD (English Headers & 4-Column Reason Split) ▼▼▼
         function downloadFullExcel() {
-            if (ANALYZED_DATA.workers.length === 0) return alert("데이터가 없습니다.");
+            if (ANALYZED_DATA.workers.length === 0) return alert("No data to download.");
 
             const wb = XLSX.utils.book_new();
             const months = ANALYZED_DATA.monthlyLabels;
 
-            // [시트 1] 근로자 상세 (월별 포함)
+            // 1. Worker Details
             const workerSheetData = ANALYZED_DATA.workers.map(w => {
                 const row = {
                     "Passport": w.Passport,
                     "Company": w.Company,
                     "Name": w.Name,
                     "Designation": w.Designation,
-                    "총 지급 건수": w.Total_Logs,
-                    "총 코인 가치": w.Total_Value,
-                    "사용 코인 가치": w.Used_Value,
-                    "잔여 코인 가치": w.Remaining_Value
+                    "Cases (Calc)": w.Total_Cases,
+                    "Total Coins (Qty)": w.Total_Qty,
+                    "Redeemed Coins (Qty)": w.Used_Qty,
+                    "Remaining Coins (Qty)": w.Remaining_Qty
                 };
-                // 월별 컬럼 추가
                 months.forEach(m => {
-                    row[`${m} (획득)`] = w.Monthly_Data[m] ? w.Monthly_Data[m].val : 0;
+                    row[`${m} (Qty)`] = w.Monthly_Data[m] ? w.Monthly_Data[m].qty : 0;
                 });
                 return row;
             });
             const ws1 = XLSX.utils.json_to_sheet(workerSheetData);
-            XLSX.utils.book_append_sheet(wb, ws1, "근로자_월별상세");
+            XLSX.utils.book_append_sheet(wb, ws1, "Workers_Monthly");
 
-            // [시트 2] 업체별 통계 (월별 포함)
+            // 2. Company Stats
             const companySheetData = Object.keys(ANALYZED_DATA.companies).map(cName => {
                 const cInfo = ANALYZED_DATA.companies[cName];
-                const row = { "Company": cName, "Total Value": cInfo.totalVal };
+                const row = { "Company": cName, "Total Qty": cInfo.totalQty };
                 months.forEach(m => {
                     row[`${m}`] = cInfo.monthly[m] || 0;
                 });
                 return row;
             });
             const ws2 = XLSX.utils.json_to_sheet(companySheetData);
-            XLSX.utils.book_append_sheet(wb, ws2, "업체별_통계");
+            XLSX.utils.book_append_sheet(wb, ws2, "Company_Stats");
 
-            // [시트 3] 관리자 실적 (월별 포함)
+            // 3. Manager Performance
             const managerSheetData = Object.keys(ANALYZED_DATA.managers).map(mid => {
                 const mInfo = ANALYZED_DATA.managers[mid];
-                const row = { "ID": mid, "Name": mInfo.name, "Total Logs": mInfo.totalLogs, "Total Value": mInfo.totalVal };
+                const row = { 
+                    "ID": mid, "Name": mInfo.name, 
+                    "Total Cases (Calc)": Math.round(mInfo.totalCases), 
+                    "Total Qty": mInfo.totalQty 
+                };
                 months.forEach(m => {
-                    row[`${m} (Qty)`] = mInfo.monthly[m] ? mInfo.monthly[m].val : 0;
+                    row[`${m} (Qty)`] = mInfo.monthly[m] ? mInfo.monthly[m].qty : 0;
                 });
                 return row;
             });
             const ws3 = XLSX.utils.json_to_sheet(managerSheetData);
-            XLSX.utils.book_append_sheet(wb, ws3, "관리자_실적");
+            XLSX.utils.book_append_sheet(wb, ws3, "Manager_Performance");
 
-            // [시트 4] 지급 사유 통계 (전체)
-            const reasonSheetData = Object.keys(ANALYZED_DATA.reasons).map(r => ({
-                "지급 사유": r, "건수": ANALYZED_DATA.reasons[r]
-            }));
+            // 4. Reason Details (★ 4 Columns Split)
+            const reasonSheetData = Object.keys(ANALYZED_DATA.reasons).map(key => {
+                const rData = ANALYZED_DATA.reasons[key];
+                return {
+                    "Top_KO": rData.texts[0],
+                    "Bottom_KO": rData.texts[1],
+                    "Top_EN": rData.texts[2],
+                    "Bottom_EN": rData.texts[3],
+                    "Frequency (Calc Cases)": Math.round(rData.cases),
+                    "Distributed Coins (Total Qty)": rData.qty
+                };
+            });
             const ws4 = XLSX.utils.json_to_sheet(reasonSheetData);
-            XLSX.utils.book_append_sheet(wb, ws4, "지급사유_빈도");
+            XLSX.utils.book_append_sheet(wb, ws4, "Reason_Details");
 
-            // [시트 5] 사용 내역 통계 (사용사유 & 월별)
+            // 5. Usage Stats
             const usageSheetData = Object.keys(ANALYZED_DATA.usageReasons).map(u => {
                 const uInfo = ANALYZED_DATA.usageReasons[u];
-                const row = { "사용 사유": u, "Total Count": uInfo.total };
+                const row = { "Usage Reason": u, "Total Count": uInfo.total };
                 months.forEach(m => {
                     row[`${m}`] = uInfo.monthly[m] || 0;
                 });
                 return row;
             });
             const ws5 = XLSX.utils.json_to_sheet(usageSheetData);
-            XLSX.utils.book_append_sheet(wb, ws5, "사용사유_통계");
+            XLSX.utils.book_append_sheet(wb, ws5, "Usage_Stats");
 
-            // 파일 저장
-            XLSX.writeFile(wb, `안전코인_통합분석_${CURRENT_MONTH_KEY}.xlsx`);
+            XLSX.writeFile(wb, `SAY_COIN_Analysis_${CURRENT_MONTH_KEY}.xlsx`);
         }
     </script>
 </body>
