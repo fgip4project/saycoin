@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y COIN Data Manager</title>
+    <title>S.A.Y COIN Data Manager (Fixed)</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -13,21 +13,19 @@
     <style>
         body { background-color: #f0f2f5; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
         .card-box { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .stat-title { font-size: 0.9rem; color: #6c757d; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-val { font-size: 1.8rem; font-weight: 700; color: #2c3e50; }
-        .stat-sub { font-size: 0.85rem; color: #28a745; }
-        .input-area { width: 100%; height: 150px; border: 1px solid #ced4da; border-radius: 5px; padding: 10px; font-size: 12px; font-family: monospace; }
-        th { cursor: pointer; background-color: #f8f9fa; user-select: none; }
-        th:hover { background-color: #e9ecef; }
-        .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.95); z-index: 9999; display: none; justify-content: center; align-items: center; flex-direction: column; }
+        .input-area { width: 100%; height: 150px; border: 1px solid #ced4da; font-family: monospace; }
+        .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.95); z-index: 9999; display: none; justify-content: center; align-items: center; }
     </style>
 </head>
 <body>
 
     <div id="loading" class="loading-mask">
-        <div class="spinner-border text-success" role="status"></div>
-        <h5 class="mt-3">Processing Data...</h5>
-        <p class="text-muted">Logic: 1 Row = 1 Coin / Cases are calculated (1/N)</p>
+        <div class="text-center">
+            <div class="spinner-border text-success" role="status"></div>
+            <h5 class="mt-3">Analyzing Data...</h5>
+            <p class="text-muted">Normalizing Passport IDs & Dates...</p>
+        </div>
     </div>
 
     <nav class="navbar navbar-dark bg-success shadow-sm mb-4">
@@ -41,7 +39,7 @@
             <div class="col-12">
                 <div class="card-box">
                     <h5>🛠️ Master File Input</h5>
-                    <p class="text-muted small">Required Header Order: <strong>Passport no | Company | Name | Designation | Iqama No</strong></p>
+                    <p class="text-muted small">Required Header: <strong>Passport no | Company | Name | Designation | Iqama No</strong></p>
                     <textarea id="pasteArea" class="input-area" placeholder="Paste Excel data here (Ctrl+V)..."></textarea>
                     <div class="text-end mt-3">
                         <button class="btn btn-outline-secondary me-2" onclick="location.reload()">🔄 Reset</button>
@@ -52,34 +50,33 @@
         </div>
 
         <div id="dashboard" style="display:none;">
-            
             <div class="row mb-2">
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">Total Coins (Qty)</div>
+                        <small class="text-muted">TOTAL COINS (QTY)</small>
                         <div class="stat-val" id="disp_totalQty">0</div>
-                        <div class="stat-sub" id="disp_monthQty">This Month: 0</div>
+                        <small class="text-success" id="disp_monthQty">This Month: 0</small>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">Total Cases (Calc)</div>
+                        <small class="text-muted">TOTAL CASES (CALC)</small>
                         <div class="stat-val" id="disp_totalCases">0</div>
-                        <div class="stat-sub" id="disp_monthCases">This Month: 0</div>
+                        <small class="text-success" id="disp_monthCases">This Month: 0</small>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">Redemption Rate</div>
+                        <small class="text-muted">REDEMPTION RATE</small>
                         <div class="stat-val text-warning" id="disp_usageRate">0%</div>
-                        <div class="stat-sub" id="disp_usedCount">Redeemed: 0</div>
+                        <small id="disp_usedCount">Redeemed: 0</small>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">Active Workers</div>
+                        <small class="text-muted">MATCHED WORKERS</small>
                         <div class="stat-val text-info" id="disp_activeWorkers">0</div>
-                        <div class="stat-sub">Total Master DB: <span id="disp_totalWorkers">0</span></div>
+                        <small>Master DB: <span id="disp_totalWorkers">0</span></small>
                     </div>
                 </div>
             </div>
@@ -87,13 +84,13 @@
             <div class="row mb-3">
                 <div class="col-md-8">
                     <div class="card-box" style="height: 400px;">
-                        <h6>📅 Monthly Trend (Coins Distributed)</h6>
+                        <h6>📅 Monthly Trend (Coins)</h6>
                         <canvas id="trendChart"></canvas>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="card-box" style="height: 400px;">
-                        <h6>🏢 Company Share (Total Coins)</h6>
+                        <h6>🏢 Company Share</h6>
                         <canvas id="companyChart"></canvas>
                     </div>
                 </div>
@@ -103,15 +100,15 @@
                 <div class="col-12">
                     <div class="card-box">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="mb-0">📋 Worker Details (Top 100 Preview)</h5>
+                            <h5 class="mb-0">📋 Worker Details (Top 100)</h5>
                             <div>
                                 <select id="sortSelect" class="form-select d-inline-block w-auto me-2" onchange="renderTable()">
-                                    <option value="Total_Qty">Sort by Total Coins</option>
-                                    <option value="Total_Cases">Sort by Total Cases</option>
-                                    <option value="Remaining_Qty">Sort by Remaining</option>
+                                    <option value="Total_Qty">Total Coins (High)</option>
+                                    <option value="Total_Cases">Total Cases (High)</option>
+                                    <option value="Remaining_Qty">Remaining (High)</option>
                                 </select>
                                 <button class="btn btn-success fw-bold" onclick="downloadFullExcel()">
-                                    📥 Download Full Excel
+                                    📥 Download Excel
                                 </button>
                             </div>
                         </div>
@@ -119,11 +116,11 @@
                             <table class="table table-hover table-striped align-middle">
                                 <thead class="table-light sticky-top" style="z-index: 1;">
                                     <tr>
-                                        <th>Passport No</th>
+                                        <th>Passport</th>
                                         <th>Company</th>
                                         <th>Name</th>
-                                        <th>Cases (Calc)</th>
-                                        <th>Total Coins</th>
+                                        <th>Cases</th>
+                                        <th>Coins (Qty)</th>
                                         <th>Redeemed</th>
                                         <th>Remaining</th>
                                     </tr>
@@ -138,40 +135,41 @@
     </div>
 
     <script>
-        // ▼▼▼ INPUT YOUR GAS URL HERE ▼▼▼
+        // ▼▼▼ INPUT GAS URL HERE ▼▼▼
         const GAS_URL = "https://script.google.com/macros/s/AKfycbwXvYF5zExPs5_cmZmfeHyHO8ma7fVEv0gSZeWZJOTVJmdjRid-RWLVXEzeFcgC5D42/exec"; 
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
         let RAW_DATA = {}; 
-        let ANALYZED_DATA = {
-            workers: [], companies: {}, managers: {}, 
-            reasons: {}, usageReasons: {}, monthlyLabels: [], monthlyTrend: {} 
-        };
+        let ANALYZED_DATA = { workers: [], companies: {}, managers: {}, reasons: {}, usageReasons: {}, monthlyLabels: [], monthlyTrend: {} };
         let CURRENT_MONTH_KEY = "";
+
+        // ★ 강력한 정규화 함수: 공백제거 + 대문자변환 + 문자열강제
+        function normalizeKey(val) {
+            if (val === undefined || val === null) return "";
+            return String(val).replace(/\s+/g, '').toUpperCase();
+        }
+        
+        // ★ 날짜 정규화 함수: 엑셀 숫자 / 문자열 모두 처리
+        function getMonthKey(dateInput) {
+            if (!dateInput) return "Unknown";
+            let dateObj;
+            if (typeof dateInput === 'number') {
+                // Excel Serial Number Logic
+                dateObj = new Date(Math.round((dateInput - 25569) * 86400 * 1000));
+            } else {
+                dateObj = new Date(dateInput);
+            }
+            if (isNaN(dateObj.getTime())) return "Unknown";
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            return `${y}-${m}`;
+        }
 
         function init() {
             const now = new Date();
             const y = now.getFullYear();
             const m = String(now.getMonth() + 1).padStart(2, '0');
             CURRENT_MONTH_KEY = `${y}-${m}`;
-        }
-
-        function safeTrim(val) {
-            return (val === undefined || val === null) ? "" : String(val).trim();
-        }
-
-        function getMonthKey(dateInput) {
-            if (!dateInput) return "Unknown";
-            let dateObj;
-            if (typeof dateInput === 'number') {
-                dateObj = new Date(Math.round((dateInput - 25569)*86400*1000));
-            } else {
-                dateObj = new Date(dateInput);
-            }
-            if (isNaN(dateObj)) return "Unknown";
-            const y = dateObj.getFullYear();
-            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-            return `${y}-${m}`;
         }
 
         async function processData() {
@@ -194,7 +192,6 @@
             }
         }
 
-        // ▼▼▼ SIMPLIFIED ANALYSIS LOGIC ▼▼▼
         function performAnalysis(masterRows) {
             const workers = {}; 
             const companies = {}; 
@@ -204,37 +201,36 @@
             const monthlySet = new Set();
             const monthlyTrend = {};
 
-            // 1. Map Category for CASE CALCULATION ONLY (Not Qty)
+            // 1. Map Categories
             const catMap = {};
             RAW_DATA.categories.slice(1).forEach(row => {
                 if(!row[0]) return;
-                const key = `${safeTrim(row[0])}|${safeTrim(row[1])}|${safeTrim(row[2])}|${safeTrim(row[3])}`;
+                // Normalize Key: Remove all spaces for matching
+                const key = normalizeKey(row[0] + "|" + row[1] + "|" + row[2] + "|" + row[3]);
                 catMap[key] = Number(row[4]) || 1; 
             });
 
-            // 2. Map Manager Names
+            // 2. Map Managers
             const managerNameMap = {};
             RAW_DATA.users.slice(1).forEach(row => {
-                managerNameMap[safeTrim(row[0])] = row[2];
+                managerNameMap[normalizeKey(row[0])] = row[2];
             });
 
-            // 3. Process Logs (Simple Rule: 1 Row = 1 Coin)
+            // 3. Process Logs
             RAW_DATA.logs.slice(1).forEach(row => {
-                if(!row[3]) return;
+                if(!row[3]) return; // Skip if no Passport
 
                 const ts = row[0];
-                const mId = safeTrim(row[1]);
-                const ppt = safeTrim(row[3]); 
+                const mId = normalizeKey(row[1]); // Normalize Manager ID
+                const ppt = normalizeKey(row[3]); // ★ Normalize Passport No
                 const coinNo = String(row[4]);
                 
-                // Reason Key for Case Calc
-                const r1 = safeTrim(row[5]);
-                const r2 = safeTrim(row[6]);
-                const r3 = safeTrim(row[7]);
-                const r4 = safeTrim(row[8]);
-                const reasonKey = `${r1}|${r2}|${r3}|${r4}`;
+                // Reason Key Gen
+                const r1 = row[5], r2 = row[6], r3 = row[7], r4 = row[8];
+                const rawReasonKey = normalizeKey(r1 + "|" + r2 + "|" + r3 + "|" + r4);
                 
-                const baseQty = catMap[reasonKey] || 1; 
+                // Calc Cases
+                const baseQty = catMap[rawReasonKey] || 1; 
                 const calculatedCase = (baseQty > 0) ? (1 / baseQty) : 0; 
                 
                 const month = getMonthKey(ts);
@@ -242,13 +238,10 @@
 
                 monthlySet.add(month);
 
-                // --- A. Worker Stats ---
-                if (!workers[ppt]) workers[ppt] = { 
-                    cases: 0.0, qty: 0, usedQty: 0, 
-                    monthly: {}, exists: true 
-                };
+                // A. Worker Stats
+                if (!workers[ppt]) workers[ppt] = { cases: 0.0, qty: 0, usedQty: 0, monthly: {}, exists: true };
                 
-                workers[ppt].qty += 1; // 1 Row = 1 Coin (Always)
+                workers[ppt].qty += 1; 
                 workers[ppt].cases += calculatedCase; 
                 if (isUsed) workers[ppt].usedQty += 1;
 
@@ -256,31 +249,29 @@
                 workers[ppt].monthly[month].qty += 1;
                 workers[ppt].monthly[month].cases += calculatedCase;
 
-
-                // --- B. Manager Stats ---
+                // B. Manager Stats
                 if (!managers[mId]) managers[mId] = { 
                     name: managerNameMap[mId] || row[2], 
                     totalCases: 0.0, totalQty: 0, monthly: {} 
                 };
-                managers[mId].totalQty += 1; // 1 Row = 1 Coin
+                managers[mId].totalQty += 1;
                 managers[mId].totalCases += calculatedCase;
                 
                 if (!managers[mId].monthly[month]) managers[mId].monthly[month] = { qty: 0, cases: 0.0 };
                 managers[mId].monthly[month].qty += 1;
                 managers[mId].monthly[month].cases += calculatedCase;
 
-
-                // --- C. Reason Stats ---
-                if (!reasons[reasonKey]) reasons[reasonKey] = { 
+                // C. Reason Stats (Keep Original Text for Excel)
+                const displayKey = rawReasonKey; // Use normalized key for grouping
+                if (!reasons[displayKey]) reasons[displayKey] = { 
                     texts: [r1, r2, r3, r4], cases: 0.0, qty: 0 
                 };
-                reasons[reasonKey].qty += 1; // 1 Row = 1 Coin
-                reasons[reasonKey].cases += calculatedCase;
+                reasons[displayKey].qty += 1;
+                reasons[displayKey].cases += calculatedCase;
 
-
-                // --- D. Global Trend ---
+                // D. Trend
                 if (!monthlyTrend[month]) monthlyTrend[month] = 0;
-                monthlyTrend[month] += 1; // 1 Row = 1 Coin
+                monthlyTrend[month] += 1;
             });
 
             // Usage Stats
@@ -293,18 +284,21 @@
                 usageReasons[reason].monthly[month]++;
             });
 
-            // Merge with Master Data
+            // Merge with Master
             ANALYZED_DATA.workers = [];
             masterRows.forEach(row => {
-                const ppt = safeTrim(row[0]);
-                if (!ppt || ppt.toLowerCase().includes('passport')) return;
+                const rawPpt = row[0];
+                const ppt = normalizeKey(rawPpt); // ★ Normalize Master Passport
+                
+                // Skip Header
+                if (!ppt || ppt.includes('PASSPORT')) return;
 
                 const comp = row[1];
                 const info = workers[ppt];
 
                 if (info) {
                     ANALYZED_DATA.workers.push({
-                        Passport: ppt,
+                        Passport: rawPpt, // Use original for display
                         Company: comp,
                         Name: row[2],
                         Designation: row[3],
@@ -317,7 +311,6 @@
 
                     if (!companies[comp]) companies[comp] = { totalQty: 0, monthly: {} };
                     companies[comp].totalQty += info.qty;
-                    
                     Object.keys(info.monthly).forEach(m => {
                         if (!companies[comp].monthly[m]) companies[comp].monthly[m] = 0;
                         companies[comp].monthly[m] += info.monthly[m].qty;
@@ -359,6 +352,7 @@
             document.getElementById('disp_usageRate').innerText = usageRate + "%";
             document.getElementById('disp_usedCount').innerText = `Redeemed: ${totalUsed.toLocaleString()}`;
             document.getElementById('disp_activeWorkers').innerText = workers.length.toLocaleString();
+            document.getElementById('disp_totalWorkers').innerText = document.getElementById('pasteArea').value.split('\n').length.toLocaleString();
             
             renderCharts();
             renderTable();
@@ -397,7 +391,7 @@
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Total Distributed Coins',
+                        label: 'Total Coins',
                         data: trendData,
                         borderColor: '#198754',
                         backgroundColor: 'rgba(25, 135, 84, 0.1)',
@@ -424,23 +418,16 @@
 
         function downloadFullExcel() {
             if (ANALYZED_DATA.workers.length === 0) return alert("No data to download.");
-
             const wb = XLSX.utils.book_new();
             const months = ANALYZED_DATA.monthlyLabels;
 
-            // 1. Workers
             const ws1Data = ANALYZED_DATA.workers.map(w => {
-                const row = {
-                    "Passport": w.Passport, "Company": w.Company, "Name": w.Name, "Designation": w.Designation,
-                    "Total Cases": w.Total_Cases, "Total Coins": w.Total_Qty, 
-                    "Redeemed": w.Used_Qty, "Remaining": w.Remaining_Qty
-                };
+                const row = { "Passport": w.Passport, "Company": w.Company, "Name": w.Name, "Designation": w.Designation, "Total Cases": w.Total_Cases, "Total Coins": w.Total_Qty, "Redeemed": w.Used_Qty, "Remaining": w.Remaining_Qty };
                 months.forEach(m => row[`${m} (Qty)`] = w.Monthly_Data[m] ? w.Monthly_Data[m].qty : 0);
                 return row;
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws1Data), "Workers_Monthly");
 
-            // 2. Companies
             const ws2Data = Object.keys(ANALYZED_DATA.companies).map(c => {
                 const d = ANALYZED_DATA.companies[c];
                 const row = { "Company": c, "Total Coins": d.totalQty };
@@ -449,7 +436,6 @@
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws2Data), "Company_Stats");
 
-            // 3. Managers
             const ws3Data = Object.keys(ANALYZED_DATA.managers).map(id => {
                 const d = ANALYZED_DATA.managers[id];
                 const row = { "ID": id, "Name": d.name, "Total Cases": Math.round(d.totalCases), "Total Coins": d.totalQty };
@@ -461,17 +447,12 @@
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws3Data), "Manager_Stats");
 
-            // 4. Reasons
             const ws4Data = Object.keys(ANALYZED_DATA.reasons).map(k => {
                 const d = ANALYZED_DATA.reasons[k];
-                return {
-                    "Top_KO": d.texts[0], "Bottom_KO": d.texts[1], "Top_EN": d.texts[2], "Bottom_EN": d.texts[3],
-                    "Frequency (Cases)": Math.round(d.cases), "Coins Distributed": d.qty
-                };
+                return { "Top_KO": d.texts[0], "Bottom_KO": d.texts[1], "Top_EN": d.texts[2], "Bottom_EN": d.texts[3], "Frequency (Cases)": Math.round(d.cases), "Coins Distributed": d.qty };
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws4Data), "Reason_Details");
 
-            // 5. Usage
             const ws5Data = Object.keys(ANALYZED_DATA.usageReasons).map(u => {
                 const d = ANALYZED_DATA.usageReasons[u];
                 const row = { "Usage Reason": u, "Total Count": d.total };
