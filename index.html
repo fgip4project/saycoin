@@ -27,7 +27,7 @@
     <div id="loading" class="loading-mask">
         <div class="spinner-border text-success" role="status"></div>
         <h5 class="mt-3">Processing Data...</h5>
-        <p class="text-muted">Calculating Coin Qty & Cases (1/N)</p>
+        <p class="text-muted">Logic: 1 Row = 1 Coin / Cases are calculated (1/N)</p>
     </div>
 
     <nav class="navbar navbar-dark bg-success shadow-sm mb-4">
@@ -37,7 +37,6 @@
     </nav>
 
     <div class="container-fluid px-4">
-        
         <div class="row">
             <div class="col-12">
                 <div class="card-box">
@@ -57,7 +56,7 @@
             <div class="row mb-2">
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">Total Distributed Coins</div>
+                        <div class="stat-title">Total Coins (Qty)</div>
                         <div class="stat-val" id="disp_totalQty">0</div>
                         <div class="stat-sub" id="disp_monthQty">This Month: 0</div>
                     </div>
@@ -71,7 +70,7 @@
                 </div>
                 <div class="col-md-3">
                     <div class="card-box text-center">
-                        <div class="stat-title">Redemption Rate (Qty)</div>
+                        <div class="stat-title">Redemption Rate</div>
                         <div class="stat-val text-warning" id="disp_usageRate">0%</div>
                         <div class="stat-sub" id="disp_usedCount">Redeemed: 0</div>
                     </div>
@@ -88,13 +87,13 @@
             <div class="row mb-3">
                 <div class="col-md-8">
                     <div class="card-box" style="height: 400px;">
-                        <h6>📅 Monthly Distribution Trend (Qty Base)</h6>
+                        <h6>📅 Monthly Trend (Coins Distributed)</h6>
                         <canvas id="trendChart"></canvas>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="card-box" style="height: 400px;">
-                        <h6>🏢 Share by Company (Top 5)</h6>
+                        <h6>🏢 Company Share (Total Coins)</h6>
                         <canvas id="companyChart"></canvas>
                     </div>
                 </div>
@@ -135,7 +134,6 @@
                     </div>
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -144,16 +142,10 @@
         const GAS_URL = "https://script.google.com/macros/s/AKfycbzFlddxuZi3MU_Vf9-0GL2nNsYQepD-x8FEiFNXC6mPNjAYFZU2UpSb3mTBP9grcnd3/exec"; 
         // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
 
-        // Global Variables
         let RAW_DATA = {}; 
         let ANALYZED_DATA = {
-            workers: [], 
-            companies: {}, 
-            managers: {}, 
-            reasons: {}, 
-            usageReasons: {}, 
-            monthlyLabels: [], 
-            monthlyTrend: {} 
+            workers: [], companies: {}, managers: {}, 
+            reasons: {}, usageReasons: {}, monthlyLabels: [], monthlyTrend: {} 
         };
         let CURRENT_MONTH_KEY = "";
 
@@ -165,8 +157,7 @@
         }
 
         function safeTrim(val) {
-            if (val === undefined || val === null) return "";
-            return String(val).trim();
+            return (val === undefined || val === null) ? "" : String(val).trim();
         }
 
         function getMonthKey(dateInput) {
@@ -189,26 +180,21 @@
             if (!inputVal.trim()) { alert("Please paste data first."); return; }
 
             document.getElementById('loading').style.display = 'flex';
-
             try {
                 const parsed = Papa.parse(inputVal, { delimiter: "\t", header: false });
-                const masterRows = parsed.data;
-
                 const response = await fetch(GAS_URL);
                 RAW_DATA = await response.json();
-
-                performAnalysis(masterRows);
+                performAnalysis(parsed.data);
                 renderDashboard();
-
             } catch (e) {
                 console.error(e);
-                alert("An error occurred: " + e.message);
+                alert("Error: " + e.message);
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
         }
 
-        // ▼▼▼ ANALYSIS LOGIC ▼▼▼
+        // ▼▼▼ SIMPLIFIED ANALYSIS LOGIC ▼▼▼
         function performAnalysis(masterRows) {
             const workers = {}; 
             const companies = {}; 
@@ -218,22 +204,21 @@
             const monthlySet = new Set();
             const monthlyTrend = {};
 
-            // 1. Map Categories (Get Base Quantity)
+            // 1. Map Category for CASE CALCULATION ONLY (Not Qty)
             const catMap = {};
             RAW_DATA.categories.slice(1).forEach(row => {
                 if(!row[0]) return;
-                // Key: 4 text fields combined
                 const key = `${safeTrim(row[0])}|${safeTrim(row[1])}|${safeTrim(row[2])}|${safeTrim(row[3])}`;
-                catMap[key] = Number(row[4]) || 1; // Default to 1 to avoid division by zero
+                catMap[key] = Number(row[4]) || 1; 
             });
 
-            // 2. Map Managers
+            // 2. Map Manager Names
             const managerNameMap = {};
             RAW_DATA.users.slice(1).forEach(row => {
                 managerNameMap[safeTrim(row[0])] = row[2];
             });
 
-            // 3. Process Logs (1 Row = 1 Coin)
+            // 3. Process Logs (Simple Rule: 1 Row = 1 Coin)
             RAW_DATA.logs.slice(1).forEach(row => {
                 if(!row[3]) return;
 
@@ -242,17 +227,14 @@
                 const ppt = safeTrim(row[3]); 
                 const coinNo = String(row[4]);
                 
-                // Reason Keys
+                // Reason Key for Case Calc
                 const r1 = safeTrim(row[5]);
                 const r2 = safeTrim(row[6]);
                 const r3 = safeTrim(row[7]);
                 const r4 = safeTrim(row[8]);
                 const reasonKey = `${r1}|${r2}|${r3}|${r4}`;
                 
-                // Get Base Quantity for this reason
                 const baseQty = catMap[reasonKey] || 1; 
-                
-                // ★ Calculation: Case = 1 / BaseQty
                 const calculatedCase = (baseQty > 0) ? (1 / baseQty) : 0; 
                 
                 const month = getMonthKey(ts);
@@ -260,49 +242,48 @@
 
                 monthlySet.add(month);
 
-                // A. Worker Stats
+                // --- A. Worker Stats ---
                 if (!workers[ppt]) workers[ppt] = { 
                     cases: 0.0, qty: 0, usedQty: 0, 
                     monthly: {}, exists: true 
                 };
                 
-                let w = workers[ppt];
-                w.qty += 1;             // 1 Row = 1 Coin
-                w.cases += calculatedCase; 
-                
-                if (isUsed) w.usedQty += 1;
+                workers[ppt].qty += 1; // 1 Row = 1 Coin (Always)
+                workers[ppt].cases += calculatedCase; 
+                if (isUsed) workers[ppt].usedQty += 1;
 
-                if (!w.monthly[month]) w.monthly[month] = { qty: 0, cases: 0.0 };
-                w.monthly[month].qty += 1;
-                w.monthly[month].cases += calculatedCase;
+                if (!workers[ppt].monthly[month]) workers[ppt].monthly[month] = { qty: 0, cases: 0.0 };
+                workers[ppt].monthly[month].qty += 1;
+                workers[ppt].monthly[month].cases += calculatedCase;
 
-                // B. Manager Stats
+
+                // --- B. Manager Stats ---
                 if (!managers[mId]) managers[mId] = { 
                     name: managerNameMap[mId] || row[2], 
                     totalCases: 0.0, totalQty: 0, monthly: {} 
                 };
-                managers[mId].totalQty += 1;
+                managers[mId].totalQty += 1; // 1 Row = 1 Coin
                 managers[mId].totalCases += calculatedCase;
                 
                 if (!managers[mId].monthly[month]) managers[mId].monthly[month] = { qty: 0, cases: 0.0 };
                 managers[mId].monthly[month].qty += 1;
                 managers[mId].monthly[month].cases += calculatedCase;
 
-                // C. Reason Stats (Store texts for Excel split)
+
+                // --- C. Reason Stats ---
                 if (!reasons[reasonKey]) reasons[reasonKey] = { 
-                    texts: [r1, r2, r3, r4], 
-                    cases: 0.0, 
-                    qty: 0 
+                    texts: [r1, r2, r3, r4], cases: 0.0, qty: 0 
                 };
-                reasons[reasonKey].qty += 1;
+                reasons[reasonKey].qty += 1; // 1 Row = 1 Coin
                 reasons[reasonKey].cases += calculatedCase;
 
-                // D. Monthly Trend
+
+                // --- D. Global Trend ---
                 if (!monthlyTrend[month]) monthlyTrend[month] = 0;
-                monthlyTrend[month] += 1;
+                monthlyTrend[month] += 1; // 1 Row = 1 Coin
             });
 
-            // Process Usage
+            // Usage Stats
             RAW_DATA.usage.slice(1).forEach(row => {
                 const month = getMonthKey(row[0]);
                 const reason = row[5] || "Unspecified";
@@ -316,7 +297,6 @@
             ANALYZED_DATA.workers = [];
             masterRows.forEach(row => {
                 const ppt = safeTrim(row[0]);
-                // Skip header or empty rows
                 if (!ppt || ppt.toLowerCase().includes('passport')) return;
 
                 const comp = row[1];
@@ -328,7 +308,7 @@
                         Company: comp,
                         Name: row[2],
                         Designation: row[3],
-                        Total_Cases: Math.round(info.cases), // Rounding cases
+                        Total_Cases: Math.round(info.cases),
                         Total_Qty: info.qty,
                         Used_Qty: info.usedQty,
                         Remaining_Qty: info.qty - info.usedQty,
@@ -337,6 +317,7 @@
 
                     if (!companies[comp]) companies[comp] = { totalQty: 0, monthly: {} };
                     companies[comp].totalQty += info.qty;
+                    
                     Object.keys(info.monthly).forEach(m => {
                         if (!companies[comp].monthly[m]) companies[comp].monthly[m] = 0;
                         companies[comp].monthly[m] += info.monthly[m].qty;
@@ -371,7 +352,6 @@
 
             document.getElementById('disp_totalQty').innerText = totalQty.toLocaleString();
             document.getElementById('disp_monthQty').innerText = `This Month: ${monthQty.toLocaleString()}`;
-            
             document.getElementById('disp_totalCases').innerText = totalCases.toLocaleString();
             document.getElementById('disp_monthCases').innerText = `This Month: ${Math.round(monthCases).toLocaleString()}`;
             
@@ -409,17 +389,15 @@
             const labels = ANALYZED_DATA.monthlyLabels;
             const trendData = labels.map(m => ANALYZED_DATA.monthlyTrend[m] || 0);
             
-            const chartStatus = Chart.getChart("trendChart"); 
-            if (chartStatus != undefined) { chartStatus.destroy(); }
-            const chartCompStatus = Chart.getChart("companyChart");
-            if (chartCompStatus != undefined) { chartCompStatus.destroy(); }
+            if (Chart.getChart("trendChart")) Chart.getChart("trendChart").destroy();
+            if (Chart.getChart("companyChart")) Chart.getChart("companyChart").destroy();
 
             new Chart(document.getElementById('trendChart'), {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: 'Monthly Distributed Coins (Qty)',
+                        label: 'Total Distributed Coins',
                         data: trendData,
                         borderColor: '#198754',
                         backgroundColor: 'rgba(25, 135, 84, 0.1)',
@@ -444,87 +422,63 @@
             });
         }
 
-        // ▼▼▼ EXCEL DOWNLOAD (English Headers & 4-Column Reason Split) ▼▼▼
         function downloadFullExcel() {
             if (ANALYZED_DATA.workers.length === 0) return alert("No data to download.");
 
             const wb = XLSX.utils.book_new();
             const months = ANALYZED_DATA.monthlyLabels;
 
-            // 1. Worker Details
-            const workerSheetData = ANALYZED_DATA.workers.map(w => {
+            // 1. Workers
+            const ws1Data = ANALYZED_DATA.workers.map(w => {
                 const row = {
-                    "Passport": w.Passport,
-                    "Company": w.Company,
-                    "Name": w.Name,
-                    "Designation": w.Designation,
-                    "Cases (Calc)": w.Total_Cases,
-                    "Total Coins (Qty)": w.Total_Qty,
-                    "Redeemed Coins (Qty)": w.Used_Qty,
-                    "Remaining Coins (Qty)": w.Remaining_Qty
+                    "Passport": w.Passport, "Company": w.Company, "Name": w.Name, "Designation": w.Designation,
+                    "Total Cases": w.Total_Cases, "Total Coins": w.Total_Qty, 
+                    "Redeemed": w.Used_Qty, "Remaining": w.Remaining_Qty
                 };
+                months.forEach(m => row[`${m} (Qty)`] = w.Monthly_Data[m] ? w.Monthly_Data[m].qty : 0);
+                return row;
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws1Data), "Workers_Monthly");
+
+            // 2. Companies
+            const ws2Data = Object.keys(ANALYZED_DATA.companies).map(c => {
+                const d = ANALYZED_DATA.companies[c];
+                const row = { "Company": c, "Total Coins": d.totalQty };
+                months.forEach(m => row[m] = d.monthly[m] || 0);
+                return row;
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws2Data), "Company_Stats");
+
+            // 3. Managers
+            const ws3Data = Object.keys(ANALYZED_DATA.managers).map(id => {
+                const d = ANALYZED_DATA.managers[id];
+                const row = { "ID": id, "Name": d.name, "Total Cases": Math.round(d.totalCases), "Total Coins": d.totalQty };
                 months.forEach(m => {
-                    row[`${m} (Qty)`] = w.Monthly_Data[m] ? w.Monthly_Data[m].qty : 0;
+                    row[`${m} (Qty)`] = d.monthly[m] ? d.monthly[m].qty : 0;
+                    row[`${m} (Cases)`] = d.monthly[m] ? Math.round(d.monthly[m].cases) : 0;
                 });
                 return row;
             });
-            const ws1 = XLSX.utils.json_to_sheet(workerSheetData);
-            XLSX.utils.book_append_sheet(wb, ws1, "Workers_Monthly");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws3Data), "Manager_Stats");
 
-            // 2. Company Stats
-            const companySheetData = Object.keys(ANALYZED_DATA.companies).map(cName => {
-                const cInfo = ANALYZED_DATA.companies[cName];
-                const row = { "Company": cName, "Total Qty": cInfo.totalQty };
-                months.forEach(m => {
-                    row[`${m}`] = cInfo.monthly[m] || 0;
-                });
-                return row;
-            });
-            const ws2 = XLSX.utils.json_to_sheet(companySheetData);
-            XLSX.utils.book_append_sheet(wb, ws2, "Company_Stats");
-
-            // 3. Manager Performance
-            const managerSheetData = Object.keys(ANALYZED_DATA.managers).map(mid => {
-                const mInfo = ANALYZED_DATA.managers[mid];
-                const row = { 
-                    "ID": mid, "Name": mInfo.name, 
-                    "Total Cases (Calc)": Math.round(mInfo.totalCases), 
-                    "Total Qty": mInfo.totalQty 
-                };
-                months.forEach(m => {
-                    row[`${m} (Qty)`] = mInfo.monthly[m] ? mInfo.monthly[m].qty : 0;
-                });
-                return row;
-            });
-            const ws3 = XLSX.utils.json_to_sheet(managerSheetData);
-            XLSX.utils.book_append_sheet(wb, ws3, "Manager_Performance");
-
-            // 4. Reason Details (★ 4 Columns Split)
-            const reasonSheetData = Object.keys(ANALYZED_DATA.reasons).map(key => {
-                const rData = ANALYZED_DATA.reasons[key];
+            // 4. Reasons
+            const ws4Data = Object.keys(ANALYZED_DATA.reasons).map(k => {
+                const d = ANALYZED_DATA.reasons[k];
                 return {
-                    "Top_KO": rData.texts[0],
-                    "Bottom_KO": rData.texts[1],
-                    "Top_EN": rData.texts[2],
-                    "Bottom_EN": rData.texts[3],
-                    "Frequency (Calc Cases)": Math.round(rData.cases),
-                    "Distributed Coins (Total Qty)": rData.qty
+                    "Top_KO": d.texts[0], "Bottom_KO": d.texts[1], "Top_EN": d.texts[2], "Bottom_EN": d.texts[3],
+                    "Frequency (Cases)": Math.round(d.cases), "Coins Distributed": d.qty
                 };
             });
-            const ws4 = XLSX.utils.json_to_sheet(reasonSheetData);
-            XLSX.utils.book_append_sheet(wb, ws4, "Reason_Details");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws4Data), "Reason_Details");
 
-            // 5. Usage Stats
-            const usageSheetData = Object.keys(ANALYZED_DATA.usageReasons).map(u => {
-                const uInfo = ANALYZED_DATA.usageReasons[u];
-                const row = { "Usage Reason": u, "Total Count": uInfo.total };
-                months.forEach(m => {
-                    row[`${m}`] = uInfo.monthly[m] || 0;
-                });
+            // 5. Usage
+            const ws5Data = Object.keys(ANALYZED_DATA.usageReasons).map(u => {
+                const d = ANALYZED_DATA.usageReasons[u];
+                const row = { "Usage Reason": u, "Total Count": d.total };
+                months.forEach(m => row[m] = d.monthly[m] || 0);
                 return row;
             });
-            const ws5 = XLSX.utils.json_to_sheet(usageSheetData);
-            XLSX.utils.book_append_sheet(wb, ws5, "Usage_Stats");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws5Data), "Usage_Stats");
 
             XLSX.writeFile(wb, `SAY_COIN_Analysis_${CURRENT_MONTH_KEY}.xlsx`);
         }
