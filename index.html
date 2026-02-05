@@ -407,14 +407,14 @@
         }
 
         // ===============================================
-        // [수정된 기능] 엑셀 다운로드 (English Only & Detailed)
+        // [수정된 기능] 엑셀 다운로드 (English & 4 Reasons)
         // ===============================================
         function downloadExcel() {
             if (!cachedData) return alert("No Data");
             const { logs, subcon } = cachedData;
             const wb = XLSX.utils.book_new();
 
-            // 1. Raw Data (English Headers)
+            // 1. Raw Data (English Headers) with ALL 4 Reason Columns
             const rawSheetData = logs.map(row => {
                 const passport = row[3];
                 const info = localMasterMap[passport] || { company: "Unregistered", name: "Unregistered", desig: "-" };
@@ -428,8 +428,10 @@
                     "Company": info.company,
                     "Designation": info.desig,
                     "Coin_No": row[4],
-                    "Reason_Category": row[5],
-                    "Reason_Detail": row[6]
+                    "Top_Category(KO)": row[5],   // F열
+                    "Bottom_Category(KO)": row[6], // G열
+                    "Top_Category(EN)": row[7],    // H열
+                    "Bottom_Category(EN)": row[8]  // I열
                 };
             });
             const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
@@ -459,11 +461,12 @@
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetWorker), "Worker_Monthly_Trend");
 
-            // 4. Sheet: Monthly Reason Analysis (Pivot)
+            // 4. Sheet: Monthly Reason Analysis (Pivot - Using EN for global consistency)
             const pivotReason = {};
             rawSheetData.forEach(i => {
-                if (!pivotReason[i.Reason_Detail]) pivotReason[i.Reason_Detail] = {};
-                pivotReason[i.Reason_Detail][i.Month] = (pivotReason[i.Reason_Detail][i.Month] || 0) + 1;
+                const reasonKey = i["Bottom_Category(EN)"] || i["Bottom_Category(KO)"]; // Use EN, fallback to KO
+                if (!pivotReason[reasonKey]) pivotReason[reasonKey] = {};
+                pivotReason[reasonKey][i.Month] = (pivotReason[reasonKey][i.Month] || 0) + 1;
             });
             const sheetReason = Object.keys(pivotReason).map(r => {
                 let row = { "Reason": r };
@@ -537,7 +540,7 @@
                     data: labels.map(m => trendData[comp][m] || 0), 
                     borderColor: `hsl(${hue}, 70%, 50%)`, 
                     backgroundColor: isCumulative ? `hsla(${hue}, 70%, 50%, 0.1)` : `hsl(${hue}, 70%, 50%)`,
-                    fill: isCumulative, // 누적 그래프면 채우기
+                    fill: isCumulative, 
                     tension: 0.3, pointRadius: 3 
                 };
             });
