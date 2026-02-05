@@ -8,67 +8,66 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
     <style>
-      body { padding: 20px; background-color: #f8f9fa; }
+      body { padding: 20px; background-color: #f8f9fa; font-family: 'Malgun Gothic', sans-serif; }
       .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-      .step-box { border-left: 5px solid #0d6efd; padding: 15px; background: white; margin-bottom: 15px; }
-      #dashboard-area { display: none; }
-      .table-responsive { max-height: 400px; overflow-y: auto; font-size: 0.85rem; }
-      th { position: sticky; top: 0; background: #eee; z-index: 1; }
-      .loading { display: none; color: #0d6efd; font-weight: bold; }
+      .step-box { border-left: 5px solid #0d6efd; padding: 20px; background: white; margin-bottom: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+      #dashboard-area { display: none; margin-top: 30px; }
+      .table-responsive { max-height: 500px; overflow-y: auto; font-size: 0.85rem; background: white; border: 1px solid #ddd; }
+      th { position: sticky; top: 0; background: #eee !important; z-index: 1; vertical-align: middle; text-align: center; }
+      td { vertical-align: middle; }
+      .loading { display: none; margin-right: 5px; }
+      h2 { color: #333; font-weight: bold; }
     </style>
   </head>
   <body>
-    <div class="container-fluid">
-      <h2 class="mb-4">📊 S.A.Y Coin 데이터 처리 및 대시보드</h2>
-
-      <div class="alert alert-info">
-        <strong>알림:</strong> 이 페이지는 GitHub Pages에서 호스팅되며, 데이터는 Google Apps Script API를 통해 처리됩니다.
-      </div>
+    <div class="container">
+      <h2 class="mb-4 text-center">📊 S.A.Y Coin 데이터 처리 및 대시보드</h2>
 
       <div class="row">
-        <div class="col-md-6">
+        <div class="col-md-12">
           <div class="step-box">
-            <h4>Step 1. 마스터 데이터 붙여넣기</h4>
-            <p class="text-muted small">엑셀 파일(PKG#4 ALL) 내용을 복사(Ctrl+A, C)하여 붙여넣으세요.</p>
-            <textarea id="masterDataInput" class="form-control" rows="6" placeholder="여기에 붙여넣으세요..."></textarea>
-          </div>
-        </div>
-
-        <div class="col-md-6">
-          <div class="step-box">
-            <h4>Step 2. 코인 파일 (Google Sheet)</h4>
-            <p class="text-muted small">Google Sheet ID를 입력하세요.</p>
-            <input type="text" id="sheetIdInput" class="form-control mb-2" placeholder="예: 1AbCdEfGhIjKlMnOpQrStUvWxYz...">
-            <button class="btn btn-primary w-100" onclick="processData()">
-              <span class="spinner-border spinner-border-sm loading" id="loadingSpinner" role="status"></span>
-              데이터 가져오기 및 분석
-            </button>
+            <h4><span class="badge bg-primary">Step 1</span> 마스터 데이터 입력</h4>
+            <p class="text-muted">
+              마스터 파일(PKG#4 ALL)의 내용을 전체 복사(Ctrl+A)하여 아래 칸에 붙여넣으세요(Ctrl+V).<br>
+              <small>* Passport no, Company, Name 등의 헤더가 포함되어야 합니다.</small>
+            </p>
+            <textarea id="masterDataInput" class="form-control mb-3" rows="5" placeholder="엑셀 데이터를 여기에 붙여넣으세요..."></textarea>
+            
+            <div class="d-grid gap-2">
+              <button class="btn btn-primary btn-lg" onclick="processData()">
+                <span class="spinner-border spinner-border-sm loading" id="loadingSpinner" role="status"></span>
+                데이터 분석 및 대시보드 생성
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
-      <hr>
 
       <div id="dashboard-area">
         <div class="d-flex justify-content-between align-items-center mb-3">
-          <h3>📈 분석 결과 대시보드</h3>
+          <h3 class="m-0">📈 분석 결과</h3>
           <button class="btn btn-success" onclick="downloadExcel()">
             <i class="bi bi-file-earmark-excel"></i> 엑셀 파일 다운로드
           </button>
         </div>
 
-        <ul class="nav nav-tabs" id="myTab" role="tablist">
-          <li class="nav-item"><button class="nav-link active" data-bs-target="#tab-users" data-bs-toggle="tab">Users Summary</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-target="#tab-comp" data-bs-toggle="tab">Company Stats</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-target="#tab-cat" data-bs-toggle="tab">Category Stats</button></li>
-          <li class="nav-item"><button class="nav-link" data-bs-target="#tab-worker" data-bs-toggle="tab">Worker Status</button></li>
-        </ul>
-
-        <div class="tab-content p-3 bg-white border border-top-0">
-          <div class="tab-pane fade show active" id="tab-users"><div class="table-responsive" id="div-users"></div></div>
-          <div class="tab-pane fade" id="tab-comp"><div class="table-responsive" id="div-comp"></div></div>
-          <div class="tab-pane fade" id="tab-cat"><div class="table-responsive" id="div-cat"></div></div>
-          <div class="tab-pane fade" id="tab-worker"><div class="table-responsive" id="div-worker"></div></div>
+        <div class="card">
+          <div class="card-header p-0">
+            <ul class="nav nav-tabs card-header-tabs m-0" id="myTab" role="tablist">
+              <li class="nav-item"><button class="nav-link active" data-bs-target="#tab-users" data-bs-toggle="tab">Users Summary</button></li>
+              <li class="nav-item"><button class="nav-link" data-bs-target="#tab-comp" data-bs-toggle="tab">Company Stats</button></li>
+              <li class="nav-item"><button class="nav-link" data-bs-target="#tab-cat" data-bs-toggle="tab">Category Stats</button></li>
+              <li class="nav-item"><button class="nav-link" data-bs-target="#tab-worker" data-bs-toggle="tab">Worker Status</button></li>
+            </ul>
+          </div>
+          <div class="card-body p-0">
+            <div class="tab-content">
+              <div class="tab-pane fade show active" id="tab-users"><div class="table-responsive p-2" id="div-users"></div></div>
+              <div class="tab-pane fade" id="tab-comp"><div class="table-responsive p-2" id="div-comp"></div></div>
+              <div class="tab-pane fade" id="tab-cat"><div class="table-responsive p-2" id="div-cat"></div></div>
+              <div class="tab-pane fade" id="tab-worker"><div class="table-responsive p-2" id="div-worker"></div></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -77,19 +76,18 @@
 
     <script>
       // ============================================================
-      // [설정] 여기에 GAS 웹 앱 URL을 붙여넣으세요.
+      // [설정] 여기에 복사한 GAS 웹 앱 URL을 붙여넣으세요.
       // ============================================================
-      const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxcsf6m2ytuDS0v3x63k0ngeK2qUXhS3uHyu-1HADEjIRg4eBJmuiMBOVTbY5rnRA3d/exec"; 
+      const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzu7n9nWXVQyAEDLBRH2UNG18wDvv8UD120b5fOeTEkYSIcmiEPLigM9ezgLo2EsEcX/exec"; 
       
+      // 전역 변수
       let finalExcelData = {};
 
       async function processData() {
         const masterText = document.getElementById('masterDataInput').value;
-        const sheetId = document.getElementById('sheetIdInput').value;
-
+        
         if (!masterText.trim()) { alert("마스터 데이터를 붙여넣어 주세요."); return; }
-        if (!sheetId.trim()) { alert("구글 시트 ID를 입력해주세요."); return; }
-
+        
         document.getElementById('loadingSpinner').style.display = 'inline-block';
 
         // 1. 마스터 데이터 파싱
@@ -100,47 +98,54 @@
           return; 
         }
 
-        // 2. GAS API 호출 (fetch 사용)
+        // 2. GAS API 호출 (ID는 이미 서버에 있음)
         try {
-          // GET 요청으로 sheetId 전달
-          const response = await fetch(`${GAS_API_URL}?sheetId=${sheetId}`);
+          const response = await fetch(GAS_API_URL);
+          if (!response.ok) throw new Error("네트워크 응답 오류 (배포 권한을 확인하세요)");
           
-          if (!response.ok) throw new Error("네트워크 응답이 올바르지 않습니다.");
-          
-          const result = await response.json(); // JSON 파싱
+          const result = await response.json();
 
           if (result.success) {
             analyzeData(masterDict, result.data);
           } else {
-            alert("데이터 실패: " + result.error);
+            alert("서버 오류: " + result.error);
           }
         } catch (err) {
-          alert("오류 발생: " + err.message + "\n\n(참고: GAS 배포 권한이 '모든 사용자'인지 확인하세요)");
+          alert("실행 중 오류 발생:\n" + err.message);
           console.error(err);
         } finally {
           document.getElementById('loadingSpinner').style.display = 'none';
         }
       }
 
-      // --- 이하 로직은 이전과 100% 동일 ---
+      // --- 데이터 파싱 및 분석 로직 ---
 
       function parseMasterData(rows) {
         if (rows.length < 2) return null;
         const headers = rows[0].map(h => h.trim());
-        const colP = headers.indexOf("Passport no");
-        const colC = headers.indexOf("Company");
-        const colN = headers.indexOf("Name");
-        const colD = headers.indexOf("Designation");
-        const colI = headers.indexOf("Iqama No");
+        
+        // 유연한 헤더 찾기 (대소문자 무시 등은 필요시 추가)
+        const colP = headers.findIndex(h => h.includes("Passport") || h.includes("passport"));
+        const colC = headers.findIndex(h => h === "Company");
+        const colN = headers.findIndex(h => h === "Name");
+        const colD = headers.findIndex(h => h === "Designation");
+        const colI = headers.findIndex(h => h.includes("Iqama"));
 
-        if (colP === -1) { alert("'Passport no' 열을 찾을 수 없습니다."); return null; }
+        if (colP === -1) { alert("마스터 데이터에서 'Passport no' 열을 찾을 수 없습니다."); return null; }
 
         const dict = new Map();
         for (let i = 1; i < rows.length; i++) {
           const row = rows[i];
           if (row.length <= colP) continue;
           const pNo = String(row[colP]).trim();
-          if (pNo) dict.set(pNo, [row[colC], row[colN], row[colD], row[colI]]);
+          if (pNo) {
+            dict.set(pNo, [
+              colC > -1 ? row[colC] : "", 
+              colN > -1 ? row[colN] : "", 
+              colD > -1 ? row[colD] : "", 
+              colI > -1 ? row[colI] : ""
+            ]);
+          }
         }
         return dict;
       }
@@ -151,20 +156,23 @@
         const arrUsage = coinData.usage;
         const arrUsers = coinData.users;
 
+        // 카테고리 수량 매핑
         const dictCatQty = new Map();
         for (let i = 1; i < arrCats.length; i++) {
           const key = `${arrCats[i][0]}|${arrCats[i][1]}|${arrCats[i][2]}|${arrCats[i][3]}`;
           dictCatQty.set(key, Number(arrCats[i][4]));
         }
 
-        const dictMgrStats = {}, dictCompStats = {}, dictCatStats = {}, dictUsageStats = {};
+        const dictMgrStats = {}, dictCompStats = {}, dictCatStats = {};
         const dictWorkerStats = new Map();
         const monthSet = new Set();
         const logsDetail = [];
 
+        // Logs 분석
         for (let i = 1; i < arrLogs.length; i++) {
           const row = arrLogs[i];
           if (!row[0]) continue;
+          
           let dateObj = new Date(row[0]);
           let monthKey = "Unknown";
           if (!isNaN(dateObj.getTime())) {
@@ -172,13 +180,16 @@
             monthKey = dateObj.getFullYear() + "-" + (m < 10 ? '0' + m : m);
             monthSet.add(monthKey);
           }
+          
           const mgrID = String(row[1]);
           const pNo = String(row[3]);
           const catKey = `${row[5]}|${row[6]}|${row[7]}|${row[8]}`;
+          
           let qtyVal = dictCatQty.has(catKey) ? dictCatQty.get(catKey) : 1;
           if (qtyVal === 0) qtyVal = 1;
           const caseContrib = 1 / qtyVal;
 
+          // 근로자 정보 매핑
           let coName = "Unknown", wName = "", wDesig = "", wIqama = "";
           if (masterDict.has(pNo)) {
             const info = masterDict.get(pNo);
@@ -197,12 +208,14 @@
           dictWorkerStats.get(pNo).qty += 1;
         }
 
+        // Usage 분석
         const usageReasonCount = {};
         for (let i = 1; i < arrUsage.length; i++) {
           const row = arrUsage[i];
           const pNo = String(row[3]);
           const reason = String(row[5]);
           usageReasonCount[reason] = (usageReasonCount[reason] || 0) + 1;
+          
           if (dictWorkerStats.has(pNo)) {
             dictWorkerStats.get(pNo).used += 1;
           } else {
@@ -223,10 +236,12 @@
         mainDict[key][month].coins += coins;
       }
 
+      // --- 화면 렌더링 ---
       function renderDashboard() {
         const d = finalExcelData;
         const months = d.sortedMonths;
 
+        // 1. Users
         let htmlUsers = `<table class="table table-striped table-bordered table-sm"><thead><tr>`;
         for(let i=0; i<6 && i<d.originalUsers[0].length; i++) htmlUsers += `<th>${d.originalUsers[0][i]}</th>`;
         months.forEach(m => htmlUsers += `<th>${m}</th>`);
@@ -246,6 +261,7 @@
         htmlUsers += `</tbody></table>`;
         document.getElementById('div-users').innerHTML = htmlUsers;
 
+        // 2. Company
         let htmlComp = `<table class="table table-striped table-bordered table-sm"><thead><tr><th>Company</th><th>Total</th>`;
         months.forEach(m => htmlComp += `<th>${m}</th>`);
         htmlComp += `</tr></thead><tbody>`;
@@ -266,21 +282,27 @@
         htmlComp += `</tbody></table>`;
         document.getElementById('div-comp').innerHTML = htmlComp;
 
+        // 3. Worker
         let htmlWorker = `<table class="table table-striped table-bordered table-sm"><thead><tr><th>Passport</th><th>Name</th><th>Company</th><th>Designation</th><th>Iqama</th><th>Qty</th><th>Used</th><th>Remain</th></tr></thead><tbody>`;
         d.workerStats.forEach((val, key) => {
            htmlWorker += `<tr><td>${key}</td><td>${val.name}</td><td>${val.company}</td><td>${val.desig}</td><td>${val.iqama}</td><td>${val.qty}</td><td>${val.used}</td><td>${val.qty - val.used}</td></tr>`;
         });
         htmlWorker += `</tbody></table>`;
         document.getElementById('div-worker').innerHTML = htmlWorker;
-        document.getElementById('div-cat').innerHTML = "<p>엑셀 다운로드 시 전체 데이터를 확인할 수 있습니다.</p>";
+        
+        // 4. Cat (Placeholder)
+        document.getElementById('div-cat').innerHTML = "<p class='text-center mt-3'>카테고리 상세 통계는 엑셀 파일에서 확인하세요.</p>";
+        
         document.getElementById('dashboard-area').style.display = 'block';
       }
 
+      // --- 엑셀 다운로드 ---
       function downloadExcel() {
         if (!finalExcelData.sortedMonths) return;
         const d = finalExcelData;
         const wb = XLSX.utils.book_new();
 
+        // 1. Users Summary
         let usersData = [];
         usersData.push([...d.originalUsers[0].slice(0,6), ...d.sortedMonths]);
         for(let i=1; i<d.originalUsers.length; i++) {
@@ -293,17 +315,21 @@
         }
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(usersData), "Users_Summary");
 
+        // 2. Logs Detail
         let logHeader = [...(d.originalLogs[0] || []), "Company", "Name", "Designation", "Iqama No"];
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([logHeader, ...d.logsDetail]), "Logs_Detail");
 
+        // 3. Worker Status
         let workerData = [["Passport_No", "Name", "Company", "Designation", "Iqama_No", "Quantity", "Used", "Remain"]];
         d.workerStats.forEach((val, key) => workerData.push([key, val.name, val.company, val.desig, val.iqama, val.qty, val.used, val.qty - val.used]));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(workerData), "Worker_Status");
 
+        // 4. Usage Reason
         let reasonData = [["Reason", "Count"]];
         Object.keys(d.usageReasons).forEach(k => reasonData.push([k, d.usageReasons[k]]));
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(reasonData), "Usage_Reason");
 
+        // 5. Category Stats
         let catData = [];
         catData.push(["Cat1", "Cat2", "Cat3", "Cat4", "Total", ...d.sortedMonths]);
         for(let i=1; i<d.originalCats.length; i++) {
@@ -323,6 +349,7 @@
         }
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catData), "Category_Stats");
 
+        // 6. Company Stats
         let compData = [["Company", "Total", ...d.sortedMonths]];
         Object.keys(d.compStats).sort().forEach(comp => {
           let row = [comp];
@@ -339,6 +366,7 @@
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(compData), "Company_Stats");
 
+        // 파일 저장
         let today = new Date();
         let fName = "S.A.Y_Coin_Data_" + today.getFullYear().toString().substr(2,2) + 
                     (today.getMonth()+1 < 10 ? '0' : '') + (today.getMonth()+1) + 
