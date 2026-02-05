@@ -6,7 +6,7 @@
     <title>S.A.Y COIN Integrated Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
@@ -27,7 +27,7 @@
             </h1>
             <p class="text-gray-500 text-sm mt-1" data-lang="subtitle">실시간 발행, 회수 및 협력사 현황</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap justify-end">
             <button onclick="toggleLanguage()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow font-bold">
                 <i class="fas fa-globe mr-2"></i><span id="langBtnText">EN</span>
             </button>
@@ -36,6 +36,9 @@
             </button>
             <button onclick="toggleModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
                 <i class="fas fa-file-excel mr-2"></i><span data-lang="btn_upload">마스터파일 업로드</span>
+            </button>
+            <button onclick="downloadExcel()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow">
+                <i class="fas fa-download mr-2"></i><span data-lang="btn_download">통계 다운로드</span>
             </button>
         </div>
     </header>
@@ -88,7 +91,7 @@
             <div class="h-80">
                 <canvas id="chartTrend"></canvas>
             </div>
-            <p class="text-xs text-gray-400 mt-2 text-right">* Logs 시트와 Master File을 패스포트 번호로 매칭한 결과입니다.</p>
+            <p class="text-xs text-gray-400 mt-2 text-right">* Logs 시트와 FGIP_masterfile을 패스포트 번호로 매칭한 결과입니다.</p>
         </div>
         
         <div class="card p-6">
@@ -120,7 +123,8 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-500 mb-4" data-lang="modal_desc">
-                    엑셀 파일에서 <b>Passport no, Company, Name, Designation</b> 4개 열을 복사하여 아래에 붙여넣으세요.
+                    엑셀 파일에서 <b>Passport no, Company, Name, Designation</b> 4개 열을 복사하여 아래에 붙여넣으세요.<br>
+                    <span class="text-red-500">* 이미 등록된 여권번호는 건너뛰고(Skip), 새로운 인원만 추가됩니다.</span>
                 </p>
                 <textarea id="pasteArea" class="w-full h-64 p-2 border rounded bg-gray-50 text-xs font-mono" placeholder="Passport No | Company | Name | Designation&#10;A1234567 | SEC | Hong Gil Dong | Manager&#10;..."></textarea>
                 <div class="flex justify-end pt-4 gap-2">
@@ -133,9 +137,9 @@
 
     <script>
         // ==========================================
-        // [설정] 여기에 배포된 GAS 웹 앱 URL을 넣으세요.
+        // [설정] 배포된 GAS 웹 앱 URL을 넣으세요
         // ==========================================
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwEnStE10KqgsNn8OANs0yZp-DneOrigPFHlopI-0qJpz-WJxWs9dRMP6Aqu_w00TJ1/exec"; 
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwEWvuE96yH4YgnQhTDnPcZgJBPE3IZZUmYzh3gbhgSQHHWF5KGZ25Kul44-T_9-7VZ/exec"; 
 
         let currentLang = 'ko';
         let cachedData = null;
@@ -146,6 +150,7 @@
             subtitle: { ko: "실시간 발행, 회수 및 협력사 현황", en: "Real-time Issuance, Redemption & Subcon Status" },
             refresh: { ko: "새로고침", en: "Refresh" },
             btn_upload: { ko: "마스터파일 업로드", en: "Upload Master File" },
+            btn_download: { ko: "통계 다운로드", en: "Download Stats" },
             loading: { ko: "데이터 분석 중...", en: "Analyzing Data..." },
             card_issued: { ko: "총 지급 코인", en: "Total Issued" },
             card_used: { ko: "총 사용(회수) 코인", en: "Total Redeemed" },
@@ -161,7 +166,7 @@
             th_use: { ko: "총 사용", en: "Used" },
             th_balance: { ko: "잔액", en: "Balance" },
             modal_title: { ko: "마스터파일 업로드", en: "Upload Master File" },
-            modal_desc: { ko: "엑셀에서 [Passport no, Company, Name, Designation] 열을 복사해 붙여넣으세요.", en: "Copy [Passport, Company, Name, Designation] columns from Excel and paste here." },
+            modal_desc: { ko: "엑셀에서 [Passport no, Company, Name, Designation] 열을 복사해 붙여넣으세요.<br><span class='text-red-500'>* 이미 등록된 여권번호는 건너뛰고(Skip), 새로운 인원만 추가됩니다.</span>", en: "Copy [Passport, Company, Name, Designation] cols.<br><span class='text-red-500'>* Skips duplicates based on Passport No.</span>" },
             btn_close: { ko: "닫기", en: "Close" },
             btn_submit: { ko: "업로드", en: "Upload" },
         };
@@ -178,7 +183,7 @@
         function applyLanguage() {
             document.querySelectorAll('[data-lang]').forEach(el => {
                 const key = el.getAttribute('data-lang');
-                if (t[key]) el.innerText = t[key][currentLang];
+                if (t[key]) el.innerHTML = t[key][currentLang];
             });
         }
 
@@ -190,10 +195,7 @@
         }
 
         async function fetchData() {
-            if (GAS_URL.includes("YOUR_GAS")) {
-                alert("HTML 파일 내 GAS_URL을 실제 주소로 변경해주세요.");
-                return;
-            }
+            if (GAS_URL.includes("YOUR_GAS")) return alert("GAS URL을 확인하세요.");
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
             try {
@@ -215,19 +217,125 @@
             if (!rawText) return alert("데이터를 입력하세요.");
             const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
             if (rows.length === 0 || rows[0].length < 4) return alert("올바른 형식이 아닙니다. (4개 열 필요)");
-            if (!confirm(`총 ${rows.length}명의 데이터를 업로드 하시겠습니까?`)) return;
+            if (!confirm(`총 ${rows.length}명의 데이터를 업로드 하시겠습니까?\n(중복된 여권번호는 자동으로 건너뜁니다)`)) return;
 
             try {
                 const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ rows: rows }) });
                 const json = await res.json();
                 if (json.status === 'success') {
-                    alert("업로드 완료!");
+                    alert(`처리 완료!\n- 추가됨: ${json.added}명\n- 건너뜀(중복): ${json.skipped}명`);
                     toggleModal();
                     fetchData();
                 } else { alert("업로드 오류: " + json.message); }
             } catch (e) { alert("네트워크 오류 발생"); }
         }
 
+        // ===============================================
+        // [신규 기능] 엑셀 다운로드 (SheetJS 사용)
+        // ===============================================
+        function downloadExcel() {
+            if (!cachedData) return alert("데이터가 없습니다. 먼저 새로고침 해주세요.");
+            
+            const { logs, master, subcon } = cachedData;
+            const wb = XLSX.utils.book_new();
+
+            // 1. 마스터 정보 매핑용 (Passport -> Info)
+            const masterMap = {};
+            master.forEach(row => {
+                if (row[0]) masterMap[row[0]] = { company: row[1], name: row[2], desig: row[3] };
+            });
+
+            // ----------------------------------------------------
+            // 시트 1: 전체_상세_내역 (근로자별 분석 가능)
+            // ----------------------------------------------------
+            const rawSheetData = logs.map(row => {
+                const passport = row[3];
+                const info = masterMap[passport] || { company: "미등록", name: "미등록", desig: "-" };
+                const date = new Date(row[0]);
+                
+                return {
+                    "지급일시": row[0],
+                    "년-월": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`,
+                    "관리자(지급)": row[2],
+                    "여권번호": passport,
+                    "이름": info.name,
+                    "협력사": info.company,
+                    "직책": info.desig,
+                    "코인번호": row[4],
+                    "상위분류": row[5], // Top_KO
+                    "상세사유": row[6]  // Bottom_KO
+                };
+            });
+            const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
+            XLSX.utils.book_append_sheet(wb, wsRaw, "전체_상세_내역");
+
+            // ----------------------------------------------------
+            // 시트 2: 월별_협력사_통계 (피벗 스타일)
+            // ----------------------------------------------------
+            const pivotData = {}; // { "SEC": { "2023-01": 10, "2023-02": 5 } }
+            const allMonths = new Set();
+            
+            rawSheetData.forEach(item => {
+                const comp = item["협력사"] || "미등록";
+                const ym = item["년-월"];
+                if (!pivotData[comp]) pivotData[comp] = {};
+                pivotData[comp][ym] = (pivotData[comp][ym] || 0) + 1;
+                allMonths.add(ym);
+            });
+
+            const sortedMonths = Array.from(allMonths).sort();
+            const monthlySheetData = [];
+            
+            Object.keys(pivotData).forEach(comp => {
+                const rowObj = { "협력사명": comp };
+                let sum = 0;
+                sortedMonths.forEach(ym => {
+                    const val = pivotData[comp][ym] || 0;
+                    rowObj[ym] = val;
+                    sum += val;
+                });
+                rowObj["총합계"] = sum;
+                monthlySheetData.push(rowObj);
+            });
+            const wsMonthly = XLSX.utils.json_to_sheet(monthlySheetData);
+            XLSX.utils.book_append_sheet(wb, wsMonthly, "월별_협력사_통계");
+
+            // ----------------------------------------------------
+            // 시트 3: 협력사_잔액_현황
+            // ----------------------------------------------------
+            const subconStats = {};
+            subcon.forEach(row => {
+                const name = row[2];
+                const type = row[3];
+                const qty = Number(row[4]) || 0;
+                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
+                if (type === 'Give') subconStats[name].give += qty;
+                else if (type === 'Use') subconStats[name].use += qty;
+            });
+
+            const subconSheetData = Object.keys(subconStats).map(name => {
+                const s = subconStats[name];
+                return {
+                    "협력사명": name,
+                    "총 지급(Give)": s.give,
+                    "총 사용(Use)": s.use,
+                    "현재 잔액": s.give - s.use
+                };
+            });
+            const wsSubcon = XLSX.utils.json_to_sheet(subconSheetData);
+            XLSX.utils.book_append_sheet(wb, wsSubcon, "협력사_잔액_현황");
+
+            // ----------------------------------------------------
+            // 파일 생성 및 다운로드
+            // ----------------------------------------------------
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+            XLSX.writeFile(wb, `SAY_COIN_통계_${dateStr}.xlsx`);
+        }
+
+        // ===============================================
+        // 차트 렌더링 로직 (기존과 동일)
+        // ===============================================
         function processAndRender(data) {
             const { logs, usage, subcon, categories, master } = data;
             const totalIssued = logs.length;
