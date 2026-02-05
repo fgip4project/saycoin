@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y COIN Secure Dashboard</title>
+    <title>S.A.Y COIN Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -16,17 +16,33 @@
         .card:hover { transform: translateY(-2px); }
         .modal { transition: opacity 0.25s ease; }
         body.modal-active { overflow-x: hidden; overflow-y: visible !important; }
+        /* Tooltip Custom Style */
+        .tooltip-text { visibility: hidden; width: 300px; background-color: #333; color: #fff; text-align: left; border-radius: 6px; padding: 10px; position: absolute; z-index: 100; top: 100%; left: 50%; margin-left: -150px; opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; font-weight: normal; line-height: 1.4; box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: none; }
+        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
     </style>
 </head>
 <body class="p-6">
 
     <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-            <h1 class="text-3xl font-bold text-gray-800">
-                <i class="fas fa-shield-alt text-green-600 mr-2"></i>
-                <span data-lang="title">S.A.Y COIN 보안 대시보드</span>
-            </h1>
-            <p class="text-gray-500 text-sm mt-1" data-lang="subtitle">서버 저장 없는 실시간 로컬 분석</p>
+            <div class="flex items-center gap-2">
+                <h1 class="text-3xl font-bold text-gray-800">
+                    <i class="fas fa-chart-line text-indigo-600 mr-2"></i>
+                    <span data-lang="title">S.A.Y COIN Dashboard</span>
+                </h1>
+            </div>
+            <div class="flex items-center gap-2 mt-1">
+                <p class="text-gray-500 text-sm" data-lang="subtitle">서버 저장 없는 실시간 로컬 분석</p>
+                <div class="relative tooltip-container cursor-help">
+                    <i class="fas fa-question-circle text-gray-400 hover:text-indigo-500"></i>
+                    <div class="tooltip-text">
+                        <strong class="block mb-1 text-yellow-400">[보안 아키텍처 설명]</strong>
+                        1. <strong>개인정보 보호:</strong> 이름, 여권번호 등 민감한 마스터 데이터는 회사 보안 정책상 외부 서버(Google Cloud 등)에 저장되지 않습니다.<br>
+                        2. <strong>로컬 처리:</strong> 대신 사용자의 브라우저 내부 저장소(IndexedDB)에 암호화 없이 안전하게 격리되어 저장됩니다.<br>
+                        3. <strong>작동 원리:</strong> 대시보드가 실행될 때 서버의 '익명 로그'와 내 PC의 '실명 정보'가 브라우저 메모리 상에서 실시간으로 결합되어 차트를 생성합니다.
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="flex gap-2 flex-wrap justify-end">
             <button onclick="toggleLanguage()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow font-bold">
@@ -36,10 +52,10 @@
                 <i class="fas fa-sync-alt mr-2"></i><span data-lang="refresh">데이터 갱신</span>
             </button>
             <button onclick="toggleModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-paste mr-2"></i><span data-lang="btn_upload">마스터정보 입력(Session)</span>
+                <i class="fas fa-file-import mr-2"></i><span data-lang="btn_upload">마스터정보 입력</span>
             </button>
             <button onclick="downloadExcel()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-download mr-2"></i><span data-lang="btn_download">통계 다운로드</span>
+                <i class="fas fa-download mr-2"></i><span data-lang="btn_download">Excel Download (Eng)</span>
             </button>
         </div>
     </header>
@@ -51,14 +67,22 @@
 
     <div id="dashboard" class="hidden space-y-8">
         
-        <div id="masterAlert" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-            <div class="flex">
-                <div class="flex-shrink-0"><i class="fas fa-exclamation-triangle text-yellow-400"></i></div>
-                <div class="ml-3">
-                    <p class="text-sm text-yellow-700" data-lang="alert_msg">
-                        현재 마스터 정보(이름, 소속 등)가 입력되지 않아 '미등록'으로 표시됩니다.<br>
-                        우측 상단 <b>'마스터정보 입력'</b> 버튼을 눌러 엑셀 데이터를 붙여넣어 주세요. (서버 전송 X)
-                    </p>
+        <div id="cacheStatusBanner" class="hidden bg-green-50 border-l-4 border-green-500 p-4 mb-4 flex justify-between items-center">
+            <div class="flex items-center">
+                <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                <div>
+                    <p class="text-sm text-green-700 font-bold">로컬 데이터 로드 완료</p>
+                    <p class="text-xs text-green-600" id="cacheCountText">0 entries loaded from local cache.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="cacheWarningBanner" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 flex justify-between items-center">
+             <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i>
+                <div>
+                    <p class="text-sm text-yellow-700 font-bold" data-lang="warn_title">마스터 정보 없음</p>
+                    <p class="text-xs text-yellow-600" data-lang="warn_desc">그래프에 '미등록(Unregistered)'이 표시됩니다. 상단 [마스터정보 입력]을 눌러 데이터를 저장하세요.</p>
                 </div>
             </div>
         </div>
@@ -99,25 +123,30 @@
             </div>
         </div>
 
-        <div class="card p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-gray-700" data-lang="chart_trend">협력사별 코인 지급 추세</h3>
-                <span class="text-xs text-blue-500 font-bold" id="masterStatus">● Local Master Data: Empty</span>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_trend_worker">협력사별 코인 지급 추세(근로자)</h3>
+                <div class="h-80">
+                    <canvas id="chartTrend"></canvas>
+                </div>
             </div>
-            <div class="h-80">
-                <canvas id="chartTrend"></canvas>
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_cumulative">협력사별 지급 누적량 (Cumulative)</h3>
+                <div class="h-80">
+                    <canvas id="chartCumulative"></canvas>
+                </div>
             </div>
         </div>
         
         <div class="card p-6">
-            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="table_title">협력사 코인 잔액 (Subcon_Logs)</h3>
+            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="table_title">협력사 코인 지급 추세(업체)</h3>
             <div class="overflow-x-auto max-h-96">
                 <table class="min-w-full text-sm text-left text-gray-500">
                     <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
                             <th class="px-6 py-3" data-lang="th_name">협력사명</th>
-                            <th class="px-6 py-3 text-right" data-lang="th_give">총 지급</th>
-                            <th class="px-6 py-3 text-right" data-lang="th_use">총 사용</th>
+                            <th class="px-6 py-3 text-right" data-lang="th_give">총 지급 (Give)</th>
+                            <th class="px-6 py-3 text-right" data-lang="th_use">총 사용 (Use)</th>
                             <th class="px-6 py-3 text-right font-bold" data-lang="th_balance">현재 잔액</th>
                         </tr>
                     </thead>
@@ -132,14 +161,14 @@
         <div class="modal-container bg-white w-11/12 md:max-w-3xl mx-auto rounded shadow-lg z-50 overflow-y-auto">
             <div class="modal-content py-4 text-left px-6">
                 <div class="flex justify-between items-center pb-3">
-                    <p class="text-2xl font-bold" data-lang="modal_title">마스터 정보 입력 (세션 전용)</p>
+                    <p class="text-2xl font-bold" data-lang="modal_title">마스터 정보 로컬 저장</p>
                     <div class="cursor-pointer z-50" onclick="toggleModal()">
                         <i class="fas fa-times"></i>
                     </div>
                 </div>
                 <div class="bg-blue-50 p-3 rounded mb-3 text-sm text-blue-800">
-                    <i class="fas fa-lock mr-2"></i>
-                    <span data-lang="modal_security">이 데이터는 서버로 전송되지 않고 브라우저에서만 사용됩니다.</span>
+                    <i class="fas fa-hdd mr-2"></i>
+                    <span data-lang="modal_security">데이터는 서버로 전송되지 않고 내 PC(IndexedDB)에만 저장됩니다.</span>
                 </div>
                 <p class="text-sm text-gray-500 mb-2" data-lang="modal_desc">
                     엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.
@@ -147,7 +176,7 @@
                 <textarea id="pasteArea" class="w-full h-64 p-2 border rounded bg-gray-50 text-xs font-mono" placeholder="A1234567 | SEC | Hong Gil Dong | Manager&#10;..."></textarea>
                 <div class="flex justify-end pt-4 gap-2">
                     <button onclick="toggleModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" data-lang="btn_close">닫기</button>
-                    <button onclick="applyMasterData()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" data-lang="btn_apply">적용하기</button>
+                    <button onclick="saveToIndexedDB()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" data-lang="btn_save">저장하기</button>
                 </div>
             </div>
         </div>
@@ -155,53 +184,92 @@
 
     <script>
         // ==========================================
-        // [설정] 배포된 GAS URL (exec로 끝나는 주소)
+        // [설정] 배포된 GAS URL
         // ==========================================
         const GAS_URL = "https://script.google.com/macros/s/AKfycbxVF66kP7qUr092RVdsXctYztfGVtszSuWJmLKa9Ak6-FTR47jgoLif9EYbC-xaFYGo/exec"; 
 
-        // 전역 상태
+        // State
         let currentLang = 'ko';
-        let cachedData = null;      // 서버에서 가져온 GAS 데이터 (Logs, Usage...)
-        let localMasterMap = {};    // 브라우저에 붙여넣은 로컬 마스터 데이터 { "Passport": {info...} }
+        let cachedData = null;      
+        let localMasterMap = {};    
         let charts = {};
 
+        // --- IndexedDB Class ---
+        class MasterDB {
+            constructor() { this.dbName = 'SayCoinMasterDB'; this.storeName = 'workers'; this.db = null; }
+            async open() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, 1);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName, { keyPath: 'passport' });
+                    };
+                    request.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
+                    request.onerror = (e) => reject(e);
+                });
+            }
+            async saveBulk(dataArray) {
+                if (!this.db) await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction([this.storeName], 'readwrite');
+                    const store = tx.objectStore(this.storeName);
+                    store.clear();
+                    dataArray.forEach(item => store.put(item));
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+            }
+            async getAll() {
+                if (!this.db) await this.open();
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction([this.storeName], 'readonly');
+                    const req = tx.objectStore(this.storeName).getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e);
+                });
+            }
+        }
+        const dbHelper = new MasterDB();
+
+        // --- Translations ---
         const t = {
-            title: { ko: "S.A.Y COIN 보안 대시보드", en: "S.A.Y COIN Secure Dashboard" },
-            subtitle: { ko: "서버 저장 없는 실시간 로컬 분석", en: "Client-side Analysis (No Server Storage)" },
-            refresh: { ko: "데이터 갱신", en: "Refresh Data" },
-            btn_upload: { ko: "마스터정보 입력(Session)", en: "Input Master Data" },
-            btn_download: { ko: "통계 다운로드", en: "Download Excel" },
+            title: { ko: "S.A.Y COIN Dashboard", en: "S.A.Y COIN Dashboard" },
+            subtitle: { ko: "서버 저장 없는 실시간 로컬 분석", en: "Secure Client-side Analytics" },
+            refresh: { ko: "데이터 갱신", en: "Refresh" },
+            btn_upload: { ko: "마스터정보 입력", en: "Import Master Data" },
+            btn_download: { ko: "Excel Download (Eng)", en: "Excel Download (Eng)" },
             loading: { ko: "데이터 불러오는 중...", en: "Loading..." },
-            alert_msg: { ko: "현재 마스터 정보(이름, 소속 등)가 입력되지 않아 '미등록'으로 표시됩니다.<br>우측 상단 <b>'마스터정보 입력'</b> 버튼을 눌러 엑셀 데이터를 붙여넣어 주세요. (서버 전송 X)", en: "Master data is missing. Charts will show 'Unregistered'.<br>Please click <b>'Input Master Data'</b> to paste Excel data locally." },
+            warn_title: { ko: "마스터 정보 없음", en: "No Master Data" },
+            warn_desc: { ko: "그래프에 '미등록(Unregistered)'이 표시됩니다. 상단 [마스터정보 입력]을 눌러 데이터를 저장하세요.", en: "Charts show 'Unregistered'. Please import data." },
+            modal_title: { ko: "마스터 정보 로컬 저장", en: "Save Master Data Locally" },
+            modal_security: { ko: "데이터는 서버로 전송되지 않고 내 PC(IndexedDB)에만 저장됩니다.", en: "Data is stored locally on your PC (IndexedDB) only." },
+            modal_desc: { ko: "엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.", en: "Paste [Passport, Company, Name, Designation] columns here." },
+            btn_close: { ko: "닫기", en: "Close" },
+            btn_save: { ko: "저장하기", en: "Save Locally" },
             
-            // Cards
             card_issued: { ko: "총 지급 코인", en: "Total Issued" },
             card_used: { ko: "총 사용(회수) 코인", en: "Total Redeemed" },
             card_remain: { ko: "시중 유통량", en: "Circulation" },
             card_rate: { ko: "코인 회수율", en: "Redemption Rate" },
             
-            // Charts
             chart_general: { ko: "일반 지급 사유", en: "Issued by Reason (General)" },
             chart_hse: { ko: "HSE 지급 사유", en: "Issued by Reason (HSE)" },
             chart_status: { ko: "발행 vs 회수 비율", en: "Issued vs Redeemed" },
-            chart_trend: { ko: "협력사별 코인 지급 추세", en: "Monthly Trend by Company" },
+            chart_trend_worker: { ko: "협력사별 코인 지급 추세(근로자)", en: "Monthly Issuance by Company (Worker)" },
+            chart_cumulative: { ko: "협력사별 지급 누적량 (Cumulative)", en: "Cumulative Issuance by Company" },
             
-            // Table
-            table_title: { ko: "협력사 코인 잔액 (Subcon_Logs)", en: "Subcontractor Coin Balance" },
+            table_title: { ko: "협력사 코인 지급 추세(업체)", en: "Company Coin Balance (Direct)" },
             th_name: { ko: "협력사명", en: "Company" },
-            th_give: { ko: "총 지급", en: "Given" },
-            th_use: { ko: "총 사용", en: "Used" },
-            th_balance: { ko: "잔액", en: "Balance" },
-            
-            // Modal
-            modal_title: { ko: "마스터 정보 입력 (세션 전용)", en: "Input Master Data (Session Only)" },
-            modal_security: { ko: "이 데이터는 서버로 전송되지 않고 브라우저에서만 사용됩니다.", en: "Data is processed locally in your browser. Not sent to server." },
-            modal_desc: { ko: "엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.", en: "Paste [Passport, Company, Name, Designation] columns here." },
-            btn_close: { ko: "닫기", en: "Close" },
-            btn_apply: { ko: "적용하기", en: "Apply Data" }
+            th_give: { ko: "총 지급 (Give)", en: "Given" },
+            th_use: { ko: "총 사용 (Use)", en: "Used" },
+            th_balance: { ko: "현재 잔액", en: "Balance" }
         };
 
-        window.onload = function() { applyLanguage(); fetchData(); };
+        window.onload = async function() { 
+            applyLanguage(); 
+            await loadLocalMasterData();
+            await fetchData(); 
+        };
 
         function toggleLanguage() {
             currentLang = currentLang === 'ko' ? 'en' : 'ko';
@@ -224,9 +292,43 @@
             document.body.classList.toggle('modal-active');
         }
 
-        // 1. 데이터 가져오기 (Logs, Usage 등만 가져옴)
+        async function loadLocalMasterData() {
+            try {
+                const results = await dbHelper.getAll();
+                localMasterMap = {};
+                if (results && results.length > 0) {
+                    results.forEach(item => { localMasterMap[item.passport] = { company: item.company, name: item.name, desig: item.desig }; });
+                    document.getElementById('cacheStatusBanner').classList.remove('hidden');
+                    document.getElementById('cacheWarningBanner').classList.add('hidden');
+                    document.getElementById('cacheCountText').innerText = `${results.length.toLocaleString()} entries loaded from local cache.`;
+                } else {
+                    document.getElementById('cacheStatusBanner').classList.add('hidden');
+                    document.getElementById('cacheWarningBanner').classList.remove('hidden');
+                }
+            } catch (e) { console.error("DB Error", e); }
+        }
+
+        async function saveToIndexedDB() {
+            const rawText = document.getElementById('pasteArea').value.trim();
+            if (!rawText) return alert("데이터를 입력하세요.");
+            const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
+            if (rows.length === 0 || rows[0].length < 4) return alert("최소 4개 열이 필요합니다.");
+            
+            const dataToSave = [];
+            rows.forEach(r => { if(r[0]) dataToSave.push({ passport: r[0], company: r[1], name: r[2], desig: r[3] }); });
+
+            if (!confirm(`${dataToSave.length}명의 데이터를 저장하시겠습니까?`)) return;
+            try {
+                await dbHelper.saveBulk(dataToSave);
+                alert("저장 완료!");
+                toggleModal();
+                await loadLocalMasterData();
+                if (cachedData) processAndRender(cachedData);
+            } catch (e) { alert("저장 실패: " + e); }
+        }
+
         async function fetchData() {
-            if (GAS_URL.includes("YOUR_GAS")) return alert("GAS URL을 설정해주세요.");
+            if (GAS_URL.includes("YOUR_GAS")) return alert("GAS URL을 설정하세요.");
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
             try {
@@ -243,39 +345,10 @@
             }
         }
 
-        // 2. [로컬] 마스터 데이터 적용 (서버 전송 없음!)
-        function applyMasterData() {
-            const rawText = document.getElementById('pasteArea').value.trim();
-            if (!rawText) return alert("데이터를 입력하세요.");
-            const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
-            
-            if (rows.length === 0 || rows[0].length < 4) return alert("최소 4개 열(Passport, Company, Name, Designation)이 필요합니다.");
-            
-            // 로컬 변수에 저장
-            let count = 0;
-            localMasterMap = {}; // 초기화
-            rows.forEach(r => {
-                if(r[0]) {
-                    localMasterMap[r[0]] = { company: r[1], name: r[2], desig: r[3] };
-                    count++;
-                }
-            });
-
-            alert(`${count}명의 정보를 브라우저에 적용했습니다.\n(새로고침 시 초기화됩니다)`);
-            
-            // 상태 표시 업데이트
-            document.getElementById('masterStatus').innerText = `● Local Master Data: ${count} entries loaded`;
-            document.getElementById('masterStatus').className = "text-xs text-green-600 font-bold";
-            document.getElementById('masterAlert').classList.add('hidden'); // 경고 배너 숨기기
-            
-            toggleModal();
-            processAndRender(cachedData); // 차트 다시 그리기
-        }
-
-        // 3. 데이터 병합 및 시각화
         function processAndRender(data) {
-            const { logs, usage, subcon, categories } = data; // master는 없음
+            const { logs, usage, subcon, categories } = data;
             
+            // KPI
             const totalIssued = logs.length;
             const totalUsed = usage.length;
             const remaining = totalIssued - totalUsed;
@@ -286,6 +359,7 @@
             document.getElementById('currentCirculation').innerText = remaining.toLocaleString();
             document.getElementById('returnRate').innerText = rate;
 
+            // Mapping & Aggregation
             const permMap = {};
             categories.forEach(row => { if (row[1]) permMap[row[1]] = row[5]; });
 
@@ -293,87 +367,132 @@
 
             logs.forEach(row => {
                 const ts = new Date(row[0]);
-                const passport = row[3]; // D열
-                const reason = row[6];   // G열
+                const passport = row[3];
+                const reason = row[6];
                 
-                // 사유별 집계
                 if (permMap[reason] === 'Master') reasonHSE[reason] = (reasonHSE[reason] || 0) + 1;
                 else reasonGeneral[reason] = (reasonGeneral[reason] || 0) + 1;
 
-                // [핵심] 로컬 마스터 데이터와 매칭
                 let comp = 'Unregistered';
-                if (localMasterMap[passport]) {
-                    comp = localMasterMap[passport].company || 'Unknown';
-                }
+                if (localMasterMap[passport]) comp = localMasterMap[passport].company || 'Unknown';
                 
-                // 추세 집계
                 const yyyymm = ts.toISOString().slice(0, 7);
                 if (!companyTrend[comp]) companyTrend[comp] = {};
                 companyTrend[comp][yyyymm] = (companyTrend[comp][yyyymm] || 0) + 1;
             });
 
+            // Calculate Cumulative Data
+            const allMonths = new Set();
+            Object.values(companyTrend).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
+            const sortedMonths = Array.from(allMonths).sort();
+            
+            const cumulativeTrend = {};
+            Object.keys(companyTrend).forEach(comp => {
+                cumulativeTrend[comp] = {};
+                let sum = 0;
+                sortedMonths.forEach(ym => {
+                    const val = companyTrend[comp][ym] || 0;
+                    sum += val;
+                    cumulativeTrend[comp][ym] = sum;
+                });
+            });
+
+            // Render Charts
             drawBarChart('chartGeneral', reasonGeneral, 'rgba(59, 130, 246, 0.7)');
             drawBarChart('chartHSE', reasonHSE, 'rgba(239, 68, 68, 0.7)');
             drawPieChart('chartRatio', totalUsed, remaining);
-            drawLineChart('chartTrend', companyTrend);
+            drawLineChart('chartTrend', companyTrend, false); // Monthly
+            drawLineChart('chartCumulative', cumulativeTrend, true); // Cumulative (Fill)
             drawSubconTable(subcon);
         }
 
-        // 4. 엑셀 다운로드 (로컬 데이터 병합)
+        // ===============================================
+        // [수정된 기능] 엑셀 다운로드 (English Only & Detailed)
+        // ===============================================
         function downloadExcel() {
-            if (!cachedData) return alert("데이터 없음");
-            
+            if (!cachedData) return alert("No Data");
             const { logs, subcon } = cachedData;
             const wb = XLSX.utils.book_new();
 
-            // 시트 1: 상세 내역
+            // 1. Raw Data (English Headers)
             const rawSheetData = logs.map(row => {
                 const passport = row[3];
-                const info = localMasterMap[passport] || { company: "미등록", name: "미등록", desig: "-" };
+                const info = localMasterMap[passport] || { company: "Unregistered", name: "Unregistered", desig: "-" };
                 const date = new Date(row[0]);
-                
                 return {
-                    "지급일시": row[0],
-                    "년-월": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`,
-                    "관리자": row[2],
-                    "여권번호": passport,
-                    "이름": info.name,
-                    "협력사": info.company,
-                    "직책": info.desig,
-                    "코인번호": row[4],
-                    "사유": row[6]
+                    "Timestamp": row[0],
+                    "Month": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`,
+                    "Manager": row[2],
+                    "Passport_No": passport,
+                    "Name": info.name,
+                    "Company": info.company,
+                    "Designation": info.desig,
+                    "Coin_No": row[4],
+                    "Reason_Category": row[5],
+                    "Reason_Detail": row[6]
                 };
             });
             const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
-            XLSX.utils.book_append_sheet(wb, wsRaw, "전체_상세_내역");
+            XLSX.utils.book_append_sheet(wb, wsRaw, "Raw_Log_Data");
 
-            // 시트 2: 월별 통계
-            const pivotData = {}; 
+            // 2. Helper for Pivot
             const allMonths = new Set();
-            rawSheetData.forEach(item => {
-                const comp = item["협력사"];
-                const ym = item["년-월"];
-                if (!pivotData[comp]) pivotData[comp] = {};
-                pivotData[comp][ym] = (pivotData[comp][ym] || 0) + 1;
-                allMonths.add(ym);
-            });
+            rawSheetData.forEach(i => allMonths.add(i.Month));
             const sortedMonths = Array.from(allMonths).sort();
-            const monthlySheetData = [];
-            Object.keys(pivotData).forEach(comp => {
-                const rowObj = { "협력사명": comp };
-                let sum = 0;
-                sortedMonths.forEach(ym => {
-                    const val = pivotData[comp][ym] || 0;
-                    rowObj[ym] = val;
-                    sum += val;
-                });
-                rowObj["총합계"] = sum;
-                monthlySheetData.push(rowObj);
-            });
-            const wsMonthly = XLSX.utils.json_to_sheet(monthlySheetData);
-            XLSX.utils.book_append_sheet(wb, wsMonthly, "월별_통계");
 
-            // 시트 3: 협력사 잔액
+            // 3. Sheet: Monthly Worker Issuance (Pivot)
+            const pivotWorker = {};
+            rawSheetData.forEach(i => {
+                if (!pivotWorker[i.Company]) pivotWorker[i.Company] = {};
+                pivotWorker[i.Company][i.Month] = (pivotWorker[i.Company][i.Month] || 0) + 1;
+            });
+            const sheetWorker = Object.keys(pivotWorker).map(comp => {
+                let row = { "Company": comp };
+                let total = 0;
+                sortedMonths.forEach(m => {
+                    let val = pivotWorker[comp][m] || 0;
+                    row[m] = val;
+                    total += val;
+                });
+                row["Total"] = total;
+                return row;
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetWorker), "Worker_Monthly_Trend");
+
+            // 4. Sheet: Monthly Reason Analysis (Pivot)
+            const pivotReason = {};
+            rawSheetData.forEach(i => {
+                if (!pivotReason[i.Reason_Detail]) pivotReason[i.Reason_Detail] = {};
+                pivotReason[i.Reason_Detail][i.Month] = (pivotReason[i.Reason_Detail][i.Month] || 0) + 1;
+            });
+            const sheetReason = Object.keys(pivotReason).map(r => {
+                let row = { "Reason": r };
+                let total = 0;
+                sortedMonths.forEach(m => {
+                    let val = pivotReason[r][m] || 0;
+                    row[m] = val;
+                    total += val;
+                });
+                row["Total"] = total;
+                return row;
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetReason), "Reason_Analysis");
+
+            // 5. Sheet: Cumulative Worker Issuance
+            const sheetCumulative = Object.keys(pivotWorker).map(comp => {
+                let row = { "Company": comp };
+                let sum = 0;
+                sortedMonths.forEach(m => {
+                    let val = pivotWorker[comp][m] || 0;
+                    sum += val;
+                    row[m] = sum;
+                });
+                row["Grand_Total"] = sum;
+                return row;
+            });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetCumulative), "Worker_Cumulative");
+
+            // 6. Sheet: Subcon Direct Status
             const subconStats = {};
             subcon.forEach(row => {
                 const name = row[2], type = row[3], qty = Number(row[4]) || 0;
@@ -381,70 +500,54 @@
                 if (type === 'Give') subconStats[name].give += qty;
                 else if (type === 'Use') subconStats[name].use += qty;
             });
-            const subconSheetData = Object.keys(subconStats).map(name => {
+            const sheetSubcon = Object.keys(subconStats).map(name => {
                 const s = subconStats[name];
-                return { "협력사명": name, "지급": s.give, "사용": s.use, "잔액": s.give - s.use };
+                return { "Company": name, "Total_Given": s.give, "Total_Used": s.use, "Current_Balance": s.give - s.use };
             });
-            const wsSubcon = XLSX.utils.json_to_sheet(subconSheetData);
-            XLSX.utils.book_append_sheet(wb, wsSubcon, "협력사_잔액");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetSubcon), "Subcon_Direct_Status");
 
+            // Export
             const now = new Date();
-            const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-            XLSX.writeFile(wb, `SAY_COIN_통계_${dateStr}.xlsx`);
+            const dateStr = now.toISOString().slice(0,10);
+            XLSX.writeFile(wb, `SAY_COIN_Analytics_${dateStr}.xlsx`);
         }
 
-        // --- Chart Helpers (동일) ---
-        function getTopKeys(obj, limit = 5) {
-            return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit);
-        }
+        // --- Chart Helpers ---
+        function getTopKeys(obj, limit = 5) { return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit); }
         function drawBarChart(id, data, color) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
             const sorted = getTopKeys(data, 10);
-            charts[id] = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: sorted.map(i => i[0]), datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }] },
-                options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
-            });
+            charts[id] = new Chart(ctx, { type: 'bar', data: { labels: sorted.map(i => i[0]), datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } } });
         }
         function drawPieChart(id, used, remaining) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
-            charts[id] = new Chart(ctx, {
-                type: 'doughnut',
-                data: { labels: ['Redeemed', 'Active'], datasets: [{ data: [used, remaining], backgroundColor: ['#EF4444', '#10B981'] }] },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+            charts[id] = new Chart(ctx, { type: 'doughnut', data: { labels: ['Redeemed', 'Active'], datasets: [{ data: [used, remaining], backgroundColor: ['#EF4444', '#10B981'] }] }, options: { responsive: true, maintainAspectRatio: false } });
         }
-        function drawLineChart(id, trendData) {
+        function drawLineChart(id, trendData, isCumulative) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
-            const allMonths = new Set();
-            Object.values(trendData).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
+            const allMonths = new Set(); Object.values(trendData).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
             const labels = Array.from(allMonths).sort();
             const datasets = Object.keys(trendData).map((comp, idx) => {
                 const hue = (idx * 137.5) % 360;
-                return { label: comp, data: labels.map(m => trendData[comp][m] || 0), borderColor: `hsl(${hue}, 70%, 50%)`, backgroundColor: `hsl(${hue}, 70%, 50%)`, tension: 0.3, pointRadius: 3 };
+                return { 
+                    label: comp, 
+                    data: labels.map(m => trendData[comp][m] || 0), 
+                    borderColor: `hsl(${hue}, 70%, 50%)`, 
+                    backgroundColor: isCumulative ? `hsla(${hue}, 70%, 50%, 0.1)` : `hsl(${hue}, 70%, 50%)`,
+                    fill: isCumulative, // 누적 그래프면 채우기
+                    tension: 0.3, pointRadius: 3 
+                };
             });
-            charts[id] = new Chart(ctx, {
-                type: 'line', data: { labels, datasets },
-                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } }
-            });
+            charts[id] = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } } });
         }
         function drawSubconTable(subconData) {
             const subconStats = {}; 
-            subconData.forEach(row => {
-                const name = row[2], type = row[3], qty = Number(row[4]) || 0;
-                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
-                if (type === 'Give') subconStats[name].give += qty;
-                else if (type === 'Use') subconStats[name].use += qty;
-            });
-            const tbody = document.getElementById('subconTableBody');
-            tbody.innerHTML = '';
-            Object.keys(subconStats).forEach(name => {
-                const s = subconStats[name], balance = s.give - s.use;
-                tbody.innerHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="px-6 py-4 font-medium text-gray-900">${name}</td><td class="px-6 py-4 text-right text-blue-600">+${s.give.toLocaleString()}</td><td class="px-6 py-4 text-right text-red-600">-${s.use.toLocaleString()}</td><td class="px-6 py-4 text-right font-bold">${balance.toLocaleString()}</td></tr>`;
-            });
+            subconData.forEach(row => { const name = row[2], type = row[3], qty = Number(row[4]) || 0; if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 }; if (type === 'Give') subconStats[name].give += qty; else if (type === 'Use') subconStats[name].use += qty; });
+            const tbody = document.getElementById('subconTableBody'); tbody.innerHTML = '';
+            Object.keys(subconStats).forEach(name => { const s = subconStats[name], balance = s.give - s.use; tbody.innerHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="px-6 py-4 font-medium text-gray-900">${name}</td><td class="px-6 py-4 text-right text-blue-600">+${s.give.toLocaleString()}</td><td class="px-6 py-4 text-right text-red-600">-${s.use.toLocaleString()}</td><td class="px-6 py-4 text-right font-bold">${balance.toLocaleString()}</td></tr>`; });
         }
     </script>
 </body>
