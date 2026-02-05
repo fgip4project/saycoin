@@ -3,265 +3,339 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y COIN Dashboard</title>
+    <title>S.A.Y COIN Integrated Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
         body { font-family: 'Noto Sans KR', sans-serif; background-color: #f3f4f6; }
         .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s; }
         .card:hover { transform: translateY(-2px); }
+        .modal { transition: opacity 0.25s ease; }
+        body.modal-active { overflow-x: hidden; overflow-y: visible !important; }
     </style>
 </head>
 <body class="p-6">
 
-    <header class="flex justify-between items-center mb-8">
+    <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-            <h1 class="text-3xl font-bold text-gray-800"><i class="fas fa-coins text-yellow-500 mr-2"></i>S.A.Y COIN 현황판</h1>
-            <p class="text-gray-500 text-sm mt-1">실시간 코인 발행 및 회수 모니터링</p>
+            <h1 class="text-3xl font-bold text-gray-800">
+                <i class="fas fa-coins text-yellow-500 mr-2"></i>
+                <span data-lang="title">S.A.Y COIN 통합 관제</span>
+            </h1>
+            <p class="text-gray-500 text-sm mt-1" data-lang="subtitle">실시간 발행, 회수 및 협력사 현황</p>
         </div>
-        <button onclick="fetchData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition">
-            <i class="fas fa-sync-alt mr-2"></i>새로고침
-        </button>
+        <div class="flex gap-2">
+            <button onclick="toggleLanguage()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow font-bold">
+                <i class="fas fa-globe mr-2"></i><span id="langBtnText">EN</span>
+            </button>
+            <button onclick="fetchData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
+                <i class="fas fa-sync-alt mr-2"></i><span data-lang="refresh">새로고침</span>
+            </button>
+            <button onclick="toggleModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
+                <i class="fas fa-file-excel mr-2"></i><span data-lang="btn_upload">마스터파일 업로드</span>
+            </button>
+        </div>
     </header>
 
     <div id="loading" class="text-center py-20">
         <i class="fas fa-circle-notch fa-spin text-4xl text-blue-500"></i>
-        <p class="mt-4 text-gray-600">데이터를 불러오는 중입니다...</p>
+        <p class="mt-4 text-gray-600" data-lang="loading">데이터 분석 중...</p>
     </div>
 
-    <div id="dashboard" class="hidden space-y-6">
+    <div id="dashboard" class="hidden space-y-8">
         
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="card p-6 border-l-4 border-blue-500">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-gray-500 text-sm">총 발행 코인</p>
-                        <h2 class="text-3xl font-bold text-gray-800" id="totalIssued">-</h2>
-                    </div>
-                    <div class="bg-blue-100 p-3 rounded-full text-blue-600"><i class="fas fa-print"></i></div>
-                </div>
+                <p class="text-gray-500 text-sm" data-lang="card_issued">총 지급 코인</p>
+                <h2 class="text-3xl font-bold text-gray-800" id="totalIssued">-</h2>
             </div>
             <div class="card p-6 border-l-4 border-red-500">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-gray-500 text-sm">총 사용(회수) 코인</p>
-                        <h2 class="text-3xl font-bold text-gray-800" id="totalUsed">-</h2>
-                    </div>
-                    <div class="bg-red-100 p-3 rounded-full text-red-600"><i class="fas fa-fire"></i></div>
-                </div>
+                <p class="text-gray-500 text-sm" data-lang="card_used">총 사용(회수) 코인</p>
+                <h2 class="text-3xl font-bold text-gray-800" id="totalUsed">-</h2>
             </div>
             <div class="card p-6 border-l-4 border-green-500">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-gray-500 text-sm">시중 유통량 (잔액)</p>
-                        <h2 class="text-3xl font-bold text-gray-800" id="currentCirculation">-</h2>
-                    </div>
-                    <div class="bg-green-100 p-3 rounded-full text-green-600"><i class="fas fa-wallet"></i></div>
-                </div>
+                <p class="text-gray-500 text-sm" data-lang="card_remain">시중 유통량</p>
+                <h2 class="text-3xl font-bold text-gray-800" id="currentCirculation">-</h2>
             </div>
             <div class="card p-6 border-l-4 border-purple-500">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <p class="text-gray-500 text-sm">코인 회수율</p>
-                        <h2 class="text-3xl font-bold text-gray-800" id="returnRate">-</h2>
-                    </div>
-                    <div class="bg-purple-100 p-3 rounded-full text-purple-600"><i class="fas fa-percent"></i></div>
+                <p class="text-gray-500 text-sm" data-lang="card_rate">코인 회수율</p>
+                <h2 class="text-3xl font-bold text-gray-800" id="returnRate">-</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_general">일반 지급 사유 (General)</h3>
+                <canvas id="chartGeneral"></canvas>
+            </div>
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_hse">HSE 지급 사유 (Safety)</h3>
+                <canvas id="chartHSE"></canvas>
+            </div>
+             <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_status">발행 vs 회수 비율</h3>
+                <div class="h-64 flex justify-center">
+                    <canvas id="chartRatio"></canvas>
                 </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4">지급 사유별 코인 발행량 (Top 5)</h3>
-                <canvas id="reasonChart"></canvas>
+        <div class="card p-6">
+            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_trend">협력사별 코인 지급 추세 (월별)</h3>
+            <div class="h-80">
+                <canvas id="chartTrend"></canvas>
             </div>
-            <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4">발행 vs 소각 비율</h3>
-                <div class="h-64 flex justify-center">
-                    <canvas id="statusChart"></canvas>
-                </div>
-            </div>
+            <p class="text-xs text-gray-400 mt-2 text-right">* Logs 시트와 Master File을 패스포트 번호로 매칭한 결과입니다.</p>
         </div>
         
         <div class="card p-6">
-            <h3 class="text-lg font-bold text-gray-700 mb-4">협력사 코인 잔액 현황</h3>
-            <div class="overflow-x-auto">
+            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="table_title">협력사 코인 잔액 (Subcon_Logs 기준)</h3>
+            <div class="overflow-x-auto max-h-96">
                 <table class="min-w-full text-sm text-left text-gray-500">
-                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
-                            <th class="px-6 py-3">협력사명</th>
-                            <th class="px-6 py-3 text-right">총 지급(Give)</th>
-                            <th class="px-6 py-3 text-right">총 사용(Use)</th>
-                            <th class="px-6 py-3 text-right font-bold">현재 잔액</th>
+                            <th class="px-6 py-3" data-lang="th_name">협력사명</th>
+                            <th class="px-6 py-3 text-right" data-lang="th_give">총 지급(Give)</th>
+                            <th class="px-6 py-3 text-right" data-lang="th_use">총 사용(Use)</th>
+                            <th class="px-6 py-3 text-right font-bold" data-lang="th_balance">현재 잔액</th>
                         </tr>
                     </thead>
-                    <tbody id="subconTableBody">
-                        </tbody>
+                    <tbody id="subconTableBody"></tbody>
                 </table>
             </div>
         </div>
+    </div>
 
+    <div id="uploadModal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50" onclick="toggleModal()"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-3xl mx-auto rounded shadow-lg z-50 overflow-y-auto">
+            <div class="modal-content py-4 text-left px-6">
+                <div class="flex justify-between items-center pb-3">
+                    <p class="text-2xl font-bold" data-lang="modal_title">마스터파일 업로드</p>
+                    <div class="cursor-pointer z-50" onclick="toggleModal()">
+                        <i class="fas fa-times"></i>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-500 mb-4" data-lang="modal_desc">
+                    엑셀 파일에서 <b>Passport no, Company, Name, Designation</b> 4개 열을 복사하여 아래에 붙여넣으세요.
+                </p>
+                <textarea id="pasteArea" class="w-full h-64 p-2 border rounded bg-gray-50 text-xs font-mono" placeholder="Passport No | Company | Name | Designation&#10;A1234567 | SEC | Hong Gil Dong | Manager&#10;..."></textarea>
+                <div class="flex justify-end pt-4 gap-2">
+                    <button onclick="toggleModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" data-lang="btn_close">닫기</button>
+                    <button onclick="uploadMasterData()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" data-lang="btn_submit">업로드 하기</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
         // ==========================================
         // [설정] 여기에 배포된 GAS 웹 앱 URL을 넣으세요.
         // ==========================================
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbyO-lO2Ymjkigm_K3OcFZbkQ_oa3ezL90tOfZMKES9-Vme05yL9uqvKR7debvkTgGzq/exec"; 
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbwEnStE10KqgsNn8OANs0yZp-DneOrigPFHlopI-0qJpz-WJxWs9dRMP6Aqu_w00TJ1/exec"; 
+
+        let currentLang = 'ko';
+        let cachedData = null;
+        let charts = {};
+
+        const t = {
+            title: { ko: "S.A.Y COIN 통합 관제", en: "S.A.Y COIN Integrated Dashboard" },
+            subtitle: { ko: "실시간 발행, 회수 및 협력사 현황", en: "Real-time Issuance, Redemption & Subcon Status" },
+            refresh: { ko: "새로고침", en: "Refresh" },
+            btn_upload: { ko: "마스터파일 업로드", en: "Upload Master File" },
+            loading: { ko: "데이터 분석 중...", en: "Analyzing Data..." },
+            card_issued: { ko: "총 지급 코인", en: "Total Issued" },
+            card_used: { ko: "총 사용(회수) 코인", en: "Total Redeemed" },
+            card_remain: { ko: "시중 유통량", en: "Circulation" },
+            card_rate: { ko: "코인 회수율", en: "Redemption Rate" },
+            chart_general: { ko: "일반 지급 사유 (General)", en: "Issued by Reason (General)" },
+            chart_hse: { ko: "HSE 지급 사유 (Safety)", en: "Issued by Reason (HSE)" },
+            chart_status: { ko: "발행 vs 회수 비율", en: "Issued vs Redeemed" },
+            chart_trend: { ko: "협력사별 코인 지급 추세 (월별)", en: "Monthly Issuance Trend by Company" },
+            table_title: { ko: "협력사 코인 잔액 (Subcon_Logs)", en: "Subcontractor Coin Balance" },
+            th_name: { ko: "협력사명", en: "Company" },
+            th_give: { ko: "총 지급", en: "Given" },
+            th_use: { ko: "총 사용", en: "Used" },
+            th_balance: { ko: "잔액", en: "Balance" },
+            modal_title: { ko: "마스터파일 업로드", en: "Upload Master File" },
+            modal_desc: { ko: "엑셀에서 [Passport no, Company, Name, Designation] 열을 복사해 붙여넣으세요.", en: "Copy [Passport, Company, Name, Designation] columns from Excel and paste here." },
+            btn_close: { ko: "닫기", en: "Close" },
+            btn_submit: { ko: "업로드", en: "Upload" },
+        };
+
+        window.onload = function() { applyLanguage(); fetchData(); };
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'ko' ? 'en' : 'ko';
+            document.getElementById('langBtnText').innerText = currentLang === 'ko' ? 'EN' : 'KO';
+            applyLanguage();
+            if (cachedData) processAndRender(cachedData);
+        }
+
+        function applyLanguage() {
+            document.querySelectorAll('[data-lang]').forEach(el => {
+                const key = el.getAttribute('data-lang');
+                if (t[key]) el.innerText = t[key][currentLang];
+            });
+        }
+
+        function toggleModal() {
+            const modal = document.getElementById('uploadModal');
+            modal.classList.toggle('opacity-0');
+            modal.classList.toggle('pointer-events-none');
+            document.body.classList.toggle('modal-active');
+        }
 
         async function fetchData() {
-            if(GAS_URL === "YOUR_GAS_WEB_APP_URL") {
-                alert("HTML 파일을 열어 'YOUR_GAS_WEB_APP_URL' 부분을 실제 주소로 변경해주세요!");
+            if (GAS_URL.includes("YOUR_GAS")) {
+                alert("HTML 파일 내 GAS_URL을 실제 주소로 변경해주세요.");
                 return;
             }
-
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
-
             try {
-                const response = await fetch(GAS_URL);
-                const json = await response.json();
-                
+                const res = await fetch(GAS_URL);
+                const json = await res.json();
                 if (json.status === 'success') {
-                    updateDashboard(json.data);
+                    cachedData = json.data;
+                    processAndRender(cachedData);
                 }
-            } catch (error) {
-                console.error("Data Fetch Error:", error);
-                alert("데이터를 불러오는데 실패했습니다.");
-            } finally {
+            } catch (e) { console.error(e); alert("데이터 로드 실패"); } 
+            finally {
                 document.getElementById('loading').classList.add('hidden');
                 document.getElementById('dashboard').classList.remove('hidden');
             }
         }
 
-        function updateDashboard(data) {
-            const logs = data.logs;     // Logs 시트 데이터
-            const usage = data.usage;   // Usage 시트 데이터
-            const subcon = data.subcon; // Subcon_Logs 데이터
+        async function uploadMasterData() {
+            const rawText = document.getElementById('pasteArea').value.trim();
+            if (!rawText) return alert("데이터를 입력하세요.");
+            const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
+            if (rows.length === 0 || rows[0].length < 4) return alert("올바른 형식이 아닙니다. (4개 열 필요)");
+            if (!confirm(`총 ${rows.length}명의 데이터를 업로드 하시겠습니까?`)) return;
 
-            // 1. 기본 통계 계산
-            // Logs 시트의 한 행은 코인 1개를 의미 (일련번호가 있으므로)
+            try {
+                const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ rows: rows }) });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    alert("업로드 완료!");
+                    toggleModal();
+                    fetchData();
+                } else { alert("업로드 오류: " + json.message); }
+            } catch (e) { alert("네트워크 오류 발생"); }
+        }
+
+        function processAndRender(data) {
+            const { logs, usage, subcon, categories, master } = data;
             const totalIssued = logs.length;
-            
-            // Usage 시트의 한 행은 코인 1개의 사용을 의미
             const totalUsed = usage.length;
-            
             const remaining = totalIssued - totalUsed;
             const rate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + "%" : "0%";
 
-            // DOM 업데이트
             document.getElementById('totalIssued').innerText = totalIssued.toLocaleString();
             document.getElementById('totalUsed').innerText = totalUsed.toLocaleString();
             document.getElementById('currentCirculation').innerText = remaining.toLocaleString();
             document.getElementById('returnRate').innerText = rate;
 
-            // 2. 차트 데이터 가공 (지급 사유별)
-            // Logs 시트의 G열(인덱스 6)이 'Bottom_KO'(하위분류/사유)라고 가정
-            const reasonCounts = {};
+            const permMap = {};
+            categories.forEach(row => { if (row[1]) permMap[row[1]] = row[5]; });
+
+            const companyMap = {};
+            master.forEach(row => { if (row[0]) companyMap[row[0]] = row[1]; });
+
+            const reasonGeneral = {}, reasonHSE = {}, companyTrend = {};
             logs.forEach(row => {
-                const reason = row[6]; // G열
-                if (reason) {
-                    reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
-                }
+                const ts = new Date(row[0]);
+                const passport = row[3];
+                const reason = row[6];
+                
+                if (permMap[reason] === 'Master') reasonHSE[reason] = (reasonHSE[reason] || 0) + 1;
+                else reasonGeneral[reason] = (reasonGeneral[reason] || 0) + 1;
+
+                const comp = companyMap[passport] || 'Unregistered';
+                const yyyymm = ts.toISOString().slice(0, 7);
+                if (!companyTrend[comp]) companyTrend[comp] = {};
+                companyTrend[comp][yyyymm] = (companyTrend[comp][yyyymm] || 0) + 1;
             });
 
-            // 정렬 및 Top 5 추출
-            const sortedReasons = Object.entries(reasonCounts)
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 5);
-
-            renderBarChart(sortedReasons);
-            renderPieChart(totalIssued, totalUsed);
-            renderSubconTable(subcon);
+            drawBarChart('chartGeneral', reasonGeneral, 'rgba(59, 130, 246, 0.7)');
+            drawBarChart('chartHSE', reasonHSE, 'rgba(239, 68, 68, 0.7)');
+            drawPieChart('chartRatio', totalUsed, remaining);
+            drawLineChart('chartTrend', companyTrend);
+            drawSubconTable(subcon);
         }
 
-        // 바 차트 (지급 사유)
-        let barChartInstance = null;
-        function renderBarChart(dataEntries) {
-            const ctx = document.getElementById('reasonChart').getContext('2d');
-            if (barChartInstance) barChartInstance.destroy();
+        function getTopKeys(obj, limit = 5) {
+            return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit);
+        }
 
-            barChartInstance = new Chart(ctx, {
+        function drawBarChart(canvasId, dataObj, color) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+            const sorted = getTopKeys(dataObj, 10);
+            charts[canvasId] = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: dataEntries.map(e => e[0]),
-                    datasets: [{
-                        label: '지급된 코인 수',
-                        data: dataEntries.map(e => e[1]),
-                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                        borderColor: 'rgba(59, 130, 246, 1)',
-                        borderWidth: 1
-                    }]
+                    labels: sorted.map(i => i[0]),
+                    datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }]
                 },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: { y: { beginAtZero: true } }
-                }
+                options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
             });
         }
 
-        // 파이 차트 (발행 vs 사용)
-        let pieChartInstance = null;
-        function renderPieChart(issued, used) {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            if (pieChartInstance) pieChartInstance.destroy();
-
-            const remaining = issued - used;
-
-            pieChartInstance = new Chart(ctx, {
+        function drawPieChart(canvasId, used, remaining) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+            charts[canvasId] = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: ['사용됨 (Used)', '보유중 (Active)'],
-                    datasets: [{
-                        data: [used, remaining],
-                        backgroundColor: ['#EF4444', '#10B981'],
-                        hoverOffset: 4
-                    }]
+                    labels: [t.card_used[currentLang], t.card_remain[currentLang]],
+                    datasets: [{ data: [used, remaining], backgroundColor: ['#EF4444', '#10B981'] }]
                 },
                 options: { responsive: true, maintainAspectRatio: false }
             });
         }
 
-        // 협력사 테이블 렌더링
-        function renderSubconTable(subconData) {
-            const subconStats = {}; // { "업체명": { give: 0, use: 0 } }
-
-            // C열: 업체명(2), D열: Type(3), E열: Quantity(4)
-            subconData.forEach(row => {
-                const name = row[2];
-                const type = row[3];
-                const qty = Number(row[4]) || 0;
-
-                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
-                
-                if (type === 'Give') subconStats[name].give += qty;
-                else if (type === 'Use') subconStats[name].use += qty;
+        function drawLineChart(canvasId, trendData) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+            const allMonths = new Set();
+            Object.values(trendData).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
+            const labels = Array.from(allMonths).sort();
+            const datasets = Object.keys(trendData).map((comp, idx) => {
+                const hue = (idx * 137.5) % 360;
+                return {
+                    label: comp,
+                    data: labels.map(m => trendData[comp][m] || 0),
+                    borderColor: `hsl(${hue}, 70%, 50%)`,
+                    backgroundColor: `hsl(${hue}, 70%, 50%)`,
+                    tension: 0.3, pointRadius: 3
+                };
             });
-
-            const tbody = document.getElementById('subconTableBody');
-            tbody.innerHTML = '';
-
-            Object.keys(subconStats).forEach(name => {
-                const s = subconStats[name];
-                const balance = s.give - s.use;
-                
-                const tr = `
-                    <tr class="bg-white border-b hover:bg-gray-50">
-                        <td class="px-6 py-4 font-medium text-gray-900">${name}</td>
-                        <td class="px-6 py-4 text-right text-blue-600">+${s.give.toLocaleString()}</td>
-                        <td class="px-6 py-4 text-right text-red-600">-${s.use.toLocaleString()}</td>
-                        <td class="px-6 py-4 text-right font-bold">${balance.toLocaleString()}</td>
-                    </tr>
-                `;
-                tbody.innerHTML += tr;
+            charts[canvasId] = new Chart(ctx, {
+                type: 'line', data: { labels, datasets },
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } }
             });
         }
 
-        // 초기 로드
-        window.onload = fetchData;
+        function drawSubconTable(subconData) {
+            const subconStats = {}; 
+            subconData.forEach(row => {
+                const name = row[2], type = row[3], qty = Number(row[4]) || 0;
+                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
+                if (type === 'Give') subconStats[name].give += qty;
+                else if (type === 'Use') subconStats[name].use += qty;
+            });
+            const tbody = document.getElementById('subconTableBody');
+            tbody.innerHTML = '';
+            Object.keys(subconStats).forEach(name => {
+                const s = subconStats[name], balance = s.give - s.use;
+                tbody.innerHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="px-6 py-4 font-medium text-gray-900">${name}</td><td class="px-6 py-4 text-right text-blue-600">+${s.give.toLocaleString()}</td><td class="px-6 py-4 text-right text-red-600">-${s.use.toLocaleString()}</td><td class="px-6 py-4 text-right font-bold">${balance.toLocaleString()}</td></tr>`;
+            });
+        }
     </script>
 </body>
 </html>
