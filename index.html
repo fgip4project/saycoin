@@ -1,378 +1,267 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y Coin Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
+    <title>S.A.Y COIN Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-      body { padding: 20px; background-color: #f8f9fa; font-family: 'Malgun Gothic', sans-serif; }
-      .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-      .step-box { border-left: 5px solid #0d6efd; padding: 20px; background: white; margin-bottom: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-      #dashboard-area { display: none; margin-top: 30px; }
-      .table-responsive { max-height: 500px; overflow-y: auto; font-size: 0.85rem; background: white; border: 1px solid #ddd; }
-      th { position: sticky; top: 0; background: #eee !important; z-index: 1; vertical-align: middle; text-align: center; }
-      td { vertical-align: middle; }
-      .loading { display: none; margin-right: 5px; }
-      h2 { color: #333; font-weight: bold; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f3f4f6; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
     </style>
-  </head>
-  <body>
-    <div class="container">
-      <h2 class="mb-4 text-center">📊 S.A.Y Coin 데이터 처리 및 대시보드</h2>
+</head>
+<body class="p-6">
 
-      <div class="row">
-        <div class="col-md-12">
-          <div class="step-box">
-            <h4><span class="badge bg-primary">Step 1</span> 마스터 데이터 입력</h4>
-            <p class="text-muted">
-              마스터 파일(PKG#4 ALL)의 내용을 전체 복사(Ctrl+A)하여 아래 칸에 붙여넣으세요(Ctrl+V).<br>
-              <small>* Passport no, Company, Name 등의 헤더가 포함되어야 합니다.</small>
-            </p>
-            <textarea id="masterDataInput" class="form-control mb-3" rows="5" placeholder="엑셀 데이터를 여기에 붙여넣으세요..."></textarea>
-            
-            <div class="d-grid gap-2">
-              <button class="btn btn-primary btn-lg" onclick="processData()">
-                <span class="spinner-border spinner-border-sm loading" id="loadingSpinner" role="status"></span>
-                데이터 분석 및 대시보드 생성
-              </button>
-            </div>
-          </div>
+    <header class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-800"><i class="fas fa-coins text-yellow-500 mr-2"></i>S.A.Y COIN 현황판</h1>
+            <p class="text-gray-500 text-sm mt-1">실시간 코인 발행 및 회수 모니터링</p>
         </div>
-      </div>
+        <button onclick="fetchData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow transition">
+            <i class="fas fa-sync-alt mr-2"></i>새로고침
+        </button>
+    </header>
 
-      <div id="dashboard-area">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h3 class="m-0">📈 분석 결과</h3>
-          <button class="btn btn-success" onclick="downloadExcel()">
-            <i class="bi bi-file-earmark-excel"></i> 엑셀 파일 다운로드
-          </button>
-        </div>
-
-        <div class="card">
-          <div class="card-header p-0">
-            <ul class="nav nav-tabs card-header-tabs m-0" id="myTab" role="tablist">
-              <li class="nav-item"><button class="nav-link active" data-bs-target="#tab-users" data-bs-toggle="tab">Users Summary</button></li>
-              <li class="nav-item"><button class="nav-link" data-bs-target="#tab-comp" data-bs-toggle="tab">Company Stats</button></li>
-              <li class="nav-item"><button class="nav-link" data-bs-target="#tab-cat" data-bs-toggle="tab">Category Stats</button></li>
-              <li class="nav-item"><button class="nav-link" data-bs-target="#tab-worker" data-bs-toggle="tab">Worker Status</button></li>
-            </ul>
-          </div>
-          <div class="card-body p-0">
-            <div class="tab-content">
-              <div class="tab-pane fade show active" id="tab-users"><div class="table-responsive p-2" id="div-users"></div></div>
-              <div class="tab-pane fade" id="tab-comp"><div class="table-responsive p-2" id="div-comp"></div></div>
-              <div class="tab-pane fade" id="tab-cat"><div class="table-responsive p-2" id="div-cat"></div></div>
-              <div class="tab-pane fade" id="tab-worker"><div class="table-responsive p-2" id="div-worker"></div></div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div id="loading" class="text-center py-20">
+        <i class="fas fa-circle-notch fa-spin text-4xl text-blue-500"></i>
+        <p class="mt-4 text-gray-600">데이터를 불러오는 중입니다...</p>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <div id="dashboard" class="hidden space-y-6">
+        
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="card p-6 border-l-4 border-blue-500">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-gray-500 text-sm">총 발행 코인</p>
+                        <h2 class="text-3xl font-bold text-gray-800" id="totalIssued">-</h2>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full text-blue-600"><i class="fas fa-print"></i></div>
+                </div>
+            </div>
+            <div class="card p-6 border-l-4 border-red-500">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-gray-500 text-sm">총 사용(소각) 코인</p>
+                        <h2 class="text-3xl font-bold text-gray-800" id="totalUsed">-</h2>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-full text-red-600"><i class="fas fa-fire"></i></div>
+                </div>
+            </div>
+            <div class="card p-6 border-l-4 border-green-500">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-gray-500 text-sm">시중 유통량 (잔액)</p>
+                        <h2 class="text-3xl font-bold text-gray-800" id="currentCirculation">-</h2>
+                    </div>
+                    <div class="bg-green-100 p-3 rounded-full text-green-600"><i class="fas fa-wallet"></i></div>
+                </div>
+            </div>
+            <div class="card p-6 border-l-4 border-purple-500">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-gray-500 text-sm">코인 회수율</p>
+                        <h2 class="text-3xl font-bold text-gray-800" id="returnRate">-</h2>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded-full text-purple-600"><i class="fas fa-percent"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4">지급 사유별 코인 발행량 (Top 5)</h3>
+                <canvas id="reasonChart"></canvas>
+            </div>
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4">발행 vs 소각 비율</h3>
+                <div class="h-64 flex justify-center">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card p-6">
+            <h3 class="text-lg font-bold text-gray-700 mb-4">협력사 코인 잔액 현황</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3">협력사명</th>
+                            <th class="px-6 py-3 text-right">총 지급(Give)</th>
+                            <th class="px-6 py-3 text-right">총 사용(Use)</th>
+                            <th class="px-6 py-3 text-right font-bold">현재 잔액</th>
+                        </tr>
+                    </thead>
+                    <tbody id="subconTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
 
     <script>
-      // ============================================================
-      // [설정] 여기에 복사한 GAS 웹 앱 URL을 붙여넣으세요.
-      // ============================================================
-      const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzu7n9nWXVQyAEDLBRH2UNG18wDvv8UD120b5fOeTEkYSIcmiEPLigM9ezgLo2EsEcX/exec"; 
-      
-      // 전역 변수
-      let finalExcelData = {};
+        // ==========================================
+        // [설정] 여기에 배포된 GAS 웹 앱 URL을 넣으세요.
+        // ==========================================
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbyO-lO2Ymjkigm_K3OcFZbkQ_oa3ezL90tOfZMKES9-Vme05yL9uqvKR7debvkTgGzq/exec"; 
 
-      async function processData() {
-        const masterText = document.getElementById('masterDataInput').value;
-        
-        if (!masterText.trim()) { alert("마스터 데이터를 붙여넣어 주세요."); return; }
-        
-        document.getElementById('loadingSpinner').style.display = 'inline-block';
-
-        // 1. 마스터 데이터 파싱
-        const masterRows = masterText.split('\n').map(row => row.split('\t'));
-        const masterDict = parseMasterData(masterRows);
-        if (!masterDict) {
-          document.getElementById('loadingSpinner').style.display = 'none';
-          return; 
-        }
-
-        // 2. GAS API 호출 (ID는 이미 서버에 있음)
-        try {
-          const response = await fetch(GAS_API_URL);
-          if (!response.ok) throw new Error("네트워크 응답 오류 (배포 권한을 확인하세요)");
-          
-          const result = await response.json();
-
-          if (result.success) {
-            analyzeData(masterDict, result.data);
-          } else {
-            alert("서버 오류: " + result.error);
-          }
-        } catch (err) {
-          alert("실행 중 오류 발생:\n" + err.message);
-          console.error(err);
-        } finally {
-          document.getElementById('loadingSpinner').style.display = 'none';
-        }
-      }
-
-      // --- 데이터 파싱 및 분석 로직 ---
-
-      function parseMasterData(rows) {
-        if (rows.length < 2) return null;
-        const headers = rows[0].map(h => h.trim());
-        
-        // 유연한 헤더 찾기 (대소문자 무시 등은 필요시 추가)
-        const colP = headers.findIndex(h => h.includes("Passport") || h.includes("passport"));
-        const colC = headers.findIndex(h => h === "Company");
-        const colN = headers.findIndex(h => h === "Name");
-        const colD = headers.findIndex(h => h === "Designation");
-        const colI = headers.findIndex(h => h.includes("Iqama"));
-
-        if (colP === -1) { alert("마스터 데이터에서 'Passport no' 열을 찾을 수 없습니다."); return null; }
-
-        const dict = new Map();
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          if (row.length <= colP) continue;
-          const pNo = String(row[colP]).trim();
-          if (pNo) {
-            dict.set(pNo, [
-              colC > -1 ? row[colC] : "", 
-              colN > -1 ? row[colN] : "", 
-              colD > -1 ? row[colD] : "", 
-              colI > -1 ? row[colI] : ""
-            ]);
-          }
-        }
-        return dict;
-      }
-
-      function analyzeData(masterDict, coinData) {
-        const arrCats = coinData.categories;
-        const arrLogs = coinData.logs;
-        const arrUsage = coinData.usage;
-        const arrUsers = coinData.users;
-
-        // 카테고리 수량 매핑
-        const dictCatQty = new Map();
-        for (let i = 1; i < arrCats.length; i++) {
-          const key = `${arrCats[i][0]}|${arrCats[i][1]}|${arrCats[i][2]}|${arrCats[i][3]}`;
-          dictCatQty.set(key, Number(arrCats[i][4]));
-        }
-
-        const dictMgrStats = {}, dictCompStats = {}, dictCatStats = {};
-        const dictWorkerStats = new Map();
-        const monthSet = new Set();
-        const logsDetail = [];
-
-        // Logs 분석
-        for (let i = 1; i < arrLogs.length; i++) {
-          const row = arrLogs[i];
-          if (!row[0]) continue;
-          
-          let dateObj = new Date(row[0]);
-          let monthKey = "Unknown";
-          if (!isNaN(dateObj.getTime())) {
-            let m = dateObj.getMonth() + 1;
-            monthKey = dateObj.getFullYear() + "-" + (m < 10 ? '0' + m : m);
-            monthSet.add(monthKey);
-          }
-          
-          const mgrID = String(row[1]);
-          const pNo = String(row[3]);
-          const catKey = `${row[5]}|${row[6]}|${row[7]}|${row[8]}`;
-          
-          let qtyVal = dictCatQty.has(catKey) ? dictCatQty.get(catKey) : 1;
-          if (qtyVal === 0) qtyVal = 1;
-          const caseContrib = 1 / qtyVal;
-
-          // 근로자 정보 매핑
-          let coName = "Unknown", wName = "", wDesig = "", wIqama = "";
-          if (masterDict.has(pNo)) {
-            const info = masterDict.get(pNo);
-            coName = info[0] || "Unknown";
-            wName = info[1]; wDesig = info[2]; wIqama = info[3];
-          }
-          logsDetail.push([...row, coName, wName, wDesig, wIqama]);
-
-          updateStats(dictMgrStats, mgrID, monthKey, caseContrib, 1);
-          updateStats(dictCatStats, catKey, monthKey, caseContrib, 1);
-          updateStats(dictCompStats, coName, monthKey, caseContrib, 1);
-
-          if (!dictWorkerStats.has(pNo)) {
-            dictWorkerStats.set(pNo, { name: wName, company: coName, desig: wDesig, iqama: wIqama, qty: 0, used: 0 });
-          }
-          dictWorkerStats.get(pNo).qty += 1;
-        }
-
-        // Usage 분석
-        const usageReasonCount = {};
-        for (let i = 1; i < arrUsage.length; i++) {
-          const row = arrUsage[i];
-          const pNo = String(row[3]);
-          const reason = String(row[5]);
-          usageReasonCount[reason] = (usageReasonCount[reason] || 0) + 1;
-          
-          if (dictWorkerStats.has(pNo)) {
-            dictWorkerStats.get(pNo).used += 1;
-          } else {
-            let info = masterDict.has(pNo) ? masterDict.get(pNo) : ["","","",""];
-            dictWorkerStats.set(pNo, { name: info[1], company: info[0], desig: info[2], iqama: info[3], qty: 0, used: 1 });
-          }
-        }
-
-        const sortedMonths = Array.from(monthSet).sort();
-        finalExcelData = { sortedMonths, mgrStats: dictMgrStats, catStats: dictCatStats, compStats: dictCompStats, workerStats: dictWorkerStats, logsDetail, usageReasons: usageReasonCount, originalUsers: arrUsers, originalCats: arrCats, originalLogs: arrLogs };
-        renderDashboard();
-      }
-
-      function updateStats(mainDict, key, month, cases, coins) {
-        if (!mainDict[key]) mainDict[key] = {};
-        if (!mainDict[key][month]) mainDict[key][month] = { cases: 0, coins: 0 };
-        mainDict[key][month].cases += cases;
-        mainDict[key][month].coins += coins;
-      }
-
-      // --- 화면 렌더링 ---
-      function renderDashboard() {
-        const d = finalExcelData;
-        const months = d.sortedMonths;
-
-        // 1. Users
-        let htmlUsers = `<table class="table table-striped table-bordered table-sm"><thead><tr>`;
-        for(let i=0; i<6 && i<d.originalUsers[0].length; i++) htmlUsers += `<th>${d.originalUsers[0][i]}</th>`;
-        months.forEach(m => htmlUsers += `<th>${m}</th>`);
-        htmlUsers += `</tr></thead><tbody>`;
-        for(let i=1; i<d.originalUsers.length; i++) {
-          let row = d.originalUsers[i];
-          let mgrID = String(row[0]);
-          htmlUsers += `<tr>`;
-          for(let j=0; j<6 && j<row.length; j++) htmlUsers += `<td>${row[j]}</td>`;
-          months.forEach(m => {
-            let txt = "";
-            if (d.mgrStats[mgrID] && d.mgrStats[mgrID][m]) txt = `${Math.round(d.mgrStats[mgrID][m].cases)}(${d.mgrStats[mgrID][m].coins})`;
-            htmlUsers += `<td>${txt}</td>`;
-          });
-          htmlUsers += `</tr>`;
-        }
-        htmlUsers += `</tbody></table>`;
-        document.getElementById('div-users').innerHTML = htmlUsers;
-
-        // 2. Company
-        let htmlComp = `<table class="table table-striped table-bordered table-sm"><thead><tr><th>Company</th><th>Total</th>`;
-        months.forEach(m => htmlComp += `<th>${m}</th>`);
-        htmlComp += `</tr></thead><tbody>`;
-        Object.keys(d.compStats).sort().forEach(comp => {
-          let totalCases = 0, totalCoins = 0;
-          let rowHtml = "";
-          months.forEach(m => {
-            let txt = "";
-            if (d.compStats[comp][m]) {
-              let s = d.compStats[comp][m];
-              txt = `${Math.round(s.cases)}(${s.coins})`;
-              totalCases += s.cases; totalCoins += s.coins;
+        async function fetchData() {
+            if(GAS_URL === "YOUR_GAS_WEB_APP_URL") {
+                alert("HTML 파일을 열어 'YOUR_GAS_WEB_APP_URL' 부분을 실제 주소로 변경해주세요!");
+                return;
             }
-            rowHtml += `<td>${txt}</td>`;
-          });
-          htmlComp += `<tr><td>${comp}</td><td>${Math.round(totalCases)}(${totalCoins})</td>${rowHtml}</tr>`;
-        });
-        htmlComp += `</tbody></table>`;
-        document.getElementById('div-comp').innerHTML = htmlComp;
 
-        // 3. Worker
-        let htmlWorker = `<table class="table table-striped table-bordered table-sm"><thead><tr><th>Passport</th><th>Name</th><th>Company</th><th>Designation</th><th>Iqama</th><th>Qty</th><th>Used</th><th>Remain</th></tr></thead><tbody>`;
-        d.workerStats.forEach((val, key) => {
-           htmlWorker += `<tr><td>${key}</td><td>${val.name}</td><td>${val.company}</td><td>${val.desig}</td><td>${val.iqama}</td><td>${val.qty}</td><td>${val.used}</td><td>${val.qty - val.used}</td></tr>`;
-        });
-        htmlWorker += `</tbody></table>`;
-        document.getElementById('div-worker').innerHTML = htmlWorker;
-        
-        // 4. Cat (Placeholder)
-        document.getElementById('div-cat').innerHTML = "<p class='text-center mt-3'>카테고리 상세 통계는 엑셀 파일에서 확인하세요.</p>";
-        
-        document.getElementById('dashboard-area').style.display = 'block';
-      }
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
 
-      // --- 엑셀 다운로드 ---
-      function downloadExcel() {
-        if (!finalExcelData.sortedMonths) return;
-        const d = finalExcelData;
-        const wb = XLSX.utils.book_new();
-
-        // 1. Users Summary
-        let usersData = [];
-        usersData.push([...d.originalUsers[0].slice(0,6), ...d.sortedMonths]);
-        for(let i=1; i<d.originalUsers.length; i++) {
-           let row = [...d.originalUsers[i].slice(0,6)];
-           let mgrID = String(row[0]);
-           d.sortedMonths.forEach(m => {
-             row.push(d.mgrStats[mgrID] && d.mgrStats[mgrID][m] ? `${Math.round(d.mgrStats[mgrID][m].cases)}(${d.mgrStats[mgrID][m].coins})` : "");
-           });
-           usersData.push(row);
+            try {
+                const response = await fetch(GAS_URL);
+                const json = await response.json();
+                
+                if (json.status === 'success') {
+                    updateDashboard(json.data);
+                }
+            } catch (error) {
+                console.error("Data Fetch Error:", error);
+                alert("데이터를 불러오는데 실패했습니다.");
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+            }
         }
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(usersData), "Users_Summary");
 
-        // 2. Logs Detail
-        let logHeader = [...(d.originalLogs[0] || []), "Company", "Name", "Designation", "Iqama No"];
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([logHeader, ...d.logsDetail]), "Logs_Detail");
+        function updateDashboard(data) {
+            const logs = data.logs;     // Logs 시트 데이터
+            const usage = data.usage;   // Usage 시트 데이터
+            const subcon = data.subcon; // Subcon_Logs 데이터
 
-        // 3. Worker Status
-        let workerData = [["Passport_No", "Name", "Company", "Designation", "Iqama_No", "Quantity", "Used", "Remain"]];
-        d.workerStats.forEach((val, key) => workerData.push([key, val.name, val.company, val.desig, val.iqama, val.qty, val.used, val.qty - val.used]));
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(workerData), "Worker_Status");
+            // 1. 기본 통계 계산
+            // Logs 시트의 한 행은 코인 1개를 의미 (일련번호가 있으므로)
+            const totalIssued = logs.length;
+            
+            // Usage 시트의 한 행은 코인 1개의 사용을 의미
+            const totalUsed = usage.length;
+            
+            const remaining = totalIssued - totalUsed;
+            const rate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + "%" : "0%";
 
-        // 4. Usage Reason
-        let reasonData = [["Reason", "Count"]];
-        Object.keys(d.usageReasons).forEach(k => reasonData.push([k, d.usageReasons[k]]));
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(reasonData), "Usage_Reason");
+            // DOM 업데이트
+            document.getElementById('totalIssued').innerText = totalIssued.toLocaleString();
+            document.getElementById('totalUsed').innerText = totalUsed.toLocaleString();
+            document.getElementById('currentCirculation').innerText = remaining.toLocaleString();
+            document.getElementById('returnRate').innerText = rate;
 
-        // 5. Category Stats
-        let catData = [];
-        catData.push(["Cat1", "Cat2", "Cat3", "Cat4", "Total", ...d.sortedMonths]);
-        for(let i=1; i<d.originalCats.length; i++) {
-          let r = d.originalCats[i];
-          let catKey = `${r[0]}|${r[1]}|${r[2]}|${r[3]}`;
-          let row = [r[0], r[1], r[2], r[3]];
-          let totalCases = 0, totalCoins = 0, monthVals = [];
-          d.sortedMonths.forEach(m => {
-            if (d.catStats[catKey] && d.catStats[catKey][m]) {
-              let s = d.catStats[catKey][m];
-              monthVals.push(`${Math.round(s.cases)}(${s.coins})`);
-              totalCases += s.cases; totalCoins += s.coins;
-            } else { monthVals.push(""); }
-          });
-          row.push(`${Math.round(totalCases)}(${totalCoins})`);
-          catData.push(row.concat(monthVals));
+            // 2. 차트 데이터 가공 (지급 사유별)
+            // Logs 시트의 G열(인덱스 6)이 'Bottom_KO'(하위분류/사유)라고 가정
+            const reasonCounts = {};
+            logs.forEach(row => {
+                const reason = row[6]; // G열
+                if (reason) {
+                    reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
+                }
+            });
+
+            // 정렬 및 Top 5 추출
+            const sortedReasons = Object.entries(reasonCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+            renderBarChart(sortedReasons);
+            renderPieChart(totalIssued, totalUsed);
+            renderSubconTable(subcon);
         }
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catData), "Category_Stats");
 
-        // 6. Company Stats
-        let compData = [["Company", "Total", ...d.sortedMonths]];
-        Object.keys(d.compStats).sort().forEach(comp => {
-          let row = [comp];
-          let totalCases = 0, totalCoins = 0, monthVals = [];
-          d.sortedMonths.forEach(m => {
-             if (d.compStats[comp][m]) {
-               let s = d.compStats[comp][m];
-               monthVals.push(`${Math.round(s.cases)}(${s.coins})`);
-               totalCases += s.cases; totalCoins += s.coins;
-             } else { monthVals.push(""); }
-          });
-          row.push(`${Math.round(totalCases)}(${totalCoins})`);
-          compData.push(row.concat(monthVals));
-        });
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(compData), "Company_Stats");
+        // 바 차트 (지급 사유)
+        let barChartInstance = null;
+        function renderBarChart(dataEntries) {
+            const ctx = document.getElementById('reasonChart').getContext('2d');
+            if (barChartInstance) barChartInstance.destroy();
 
-        // 파일 저장
-        let today = new Date();
-        let fName = "S.A.Y_Coin_Data_" + today.getFullYear().toString().substr(2,2) + 
-                    (today.getMonth()+1 < 10 ? '0' : '') + (today.getMonth()+1) + 
-                    (today.getDate() < 10 ? '0' : '') + today.getDate() + ".xlsx";
-        XLSX.writeFile(wb, fName);
-      }
+            barChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dataEntries.map(e => e[0]),
+                    datasets: [{
+                        label: '지급된 코인 수',
+                        data: dataEntries.map(e => e[1]),
+                        backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        // 파이 차트 (발행 vs 사용)
+        let pieChartInstance = null;
+        function renderPieChart(issued, used) {
+            const ctx = document.getElementById('statusChart').getContext('2d');
+            if (pieChartInstance) pieChartInstance.destroy();
+
+            const remaining = issued - used;
+
+            pieChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['사용됨 (Used)', '보유중 (Active)'],
+                    datasets: [{
+                        data: [used, remaining],
+                        backgroundColor: ['#EF4444', '#10B981'],
+                        hoverOffset: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        // 협력사 테이블 렌더링
+        function renderSubconTable(subconData) {
+            const subconStats = {}; // { "업체명": { give: 0, use: 0 } }
+
+            // C열: 업체명(2), D열: Type(3), E열: Quantity(4)
+            subconData.forEach(row => {
+                const name = row[2];
+                const type = row[3];
+                const qty = Number(row[4]) || 0;
+
+                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
+                
+                if (type === 'Give') subconStats[name].give += qty;
+                else if (type === 'Use') subconStats[name].use += qty;
+            });
+
+            const tbody = document.getElementById('subconTableBody');
+            tbody.innerHTML = '';
+
+            Object.keys(subconStats).forEach(name => {
+                const s = subconStats[name];
+                const balance = s.give - s.use;
+                
+                const tr = `
+                    <tr class="bg-white border-b hover:bg-gray-50">
+                        <td class="px-6 py-4 font-medium text-gray-900">${name}</td>
+                        <td class="px-6 py-4 text-right text-blue-600">+${s.give.toLocaleString()}</td>
+                        <td class="px-6 py-4 text-right text-red-600">-${s.use.toLocaleString()}</td>
+                        <td class="px-6 py-4 text-right font-bold">${balance.toLocaleString()}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += tr;
+            });
+        }
+
+        // 초기 로드
+        window.onload = fetchData;
     </script>
-  </body>
+</body>
 </html>
