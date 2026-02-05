@@ -1,527 +1,350 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="ko">
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y COIN Data Manager (High Precision)</title>
-    
+    <title>S.A.Y Coin Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
-        body { background-color: #f0f2f5; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        .card-box { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .stat-val { font-size: 1.8rem; font-weight: 700; color: #2c3e50; }
-        .input-area { width: 100%; height: 150px; border: 1px solid #ced4da; font-family: monospace; }
-        .loading-mask { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(255,255,255,0.95); z-index: 9999; display: none; justify-content: center; align-items: center; }
-        .text-warn { color: #dc3545; font-weight: bold; }
-        .debug-panel { background: #e9ecef; padding: 10px; border-radius: 5px; font-size: 0.85rem; font-family: monospace; max-height: 150px; overflow-y: auto; display: none; margin-top: 10px; }
+      body { padding: 20px; background-color: #f8f9fa; }
+      .card { margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      .step-box { border-left: 5px solid #0d6efd; padding: 15px; background: white; margin-bottom: 15px; }
+      #dashboard-area { display: none; }
+      .table-responsive { max-height: 400px; overflow-y: auto; font-size: 0.85rem; }
+      th { position: sticky; top: 0; background: #eee; z-index: 1; }
+      .loading { display: none; color: #0d6efd; font-weight: bold; }
     </style>
-</head>
-<body>
+  </head>
+  <body>
+    <div class="container-fluid">
+      <h2 class="mb-4">📊 S.A.Y Coin 데이터 처리 및 대시보드</h2>
 
-    <div id="loading" class="loading-mask">
-        <div class="text-center">
-            <div class="spinner-border text-success" role="status"></div>
-            <h5 class="mt-3">Analyzing & Cleaning Data...</h5>
-            <p class="text-muted">Removing hidden spaces and formatting issues...</p>
+      <div class="alert alert-info">
+        <strong>알림:</strong> 이 페이지는 GitHub Pages에서 호스팅되며, 데이터는 Google Apps Script API를 통해 처리됩니다.
+      </div>
+
+      <div class="row">
+        <div class="col-md-6">
+          <div class="step-box">
+            <h4>Step 1. 마스터 데이터 붙여넣기</h4>
+            <p class="text-muted small">엑셀 파일(PKG#4 ALL) 내용을 복사(Ctrl+A, C)하여 붙여넣으세요.</p>
+            <textarea id="masterDataInput" class="form-control" rows="6" placeholder="여기에 붙여넣으세요..."></textarea>
+          </div>
         </div>
+
+        <div class="col-md-6">
+          <div class="step-box">
+            <h4>Step 2. 코인 파일 (Google Sheet)</h4>
+            <p class="text-muted small">Google Sheet ID를 입력하세요.</p>
+            <input type="text" id="sheetIdInput" class="form-control mb-2" placeholder="예: 1AbCdEfGhIjKlMnOpQrStUvWxYz...">
+            <button class="btn btn-primary w-100" onclick="processData()">
+              <span class="spinner-border spinner-border-sm loading" id="loadingSpinner" role="status"></span>
+              데이터 가져오기 및 분석
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <hr>
+
+      <div id="dashboard-area">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h3>📈 분석 결과 대시보드</h3>
+          <button class="btn btn-success" onclick="downloadExcel()">
+            <i class="bi bi-file-earmark-excel"></i> 엑셀 파일 다운로드
+          </button>
+        </div>
+
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+          <li class="nav-item"><button class="nav-link active" data-bs-target="#tab-users" data-bs-toggle="tab">Users Summary</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-target="#tab-comp" data-bs-toggle="tab">Company Stats</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-target="#tab-cat" data-bs-toggle="tab">Category Stats</button></li>
+          <li class="nav-item"><button class="nav-link" data-bs-target="#tab-worker" data-bs-toggle="tab">Worker Status</button></li>
+        </ul>
+
+        <div class="tab-content p-3 bg-white border border-top-0">
+          <div class="tab-pane fade show active" id="tab-users"><div class="table-responsive" id="div-users"></div></div>
+          <div class="tab-pane fade" id="tab-comp"><div class="table-responsive" id="div-comp"></div></div>
+          <div class="tab-pane fade" id="tab-cat"><div class="table-responsive" id="div-cat"></div></div>
+          <div class="tab-pane fade" id="tab-worker"><div class="table-responsive" id="div-worker"></div></div>
+        </div>
+      </div>
     </div>
 
-    <nav class="navbar navbar-dark bg-success shadow-sm mb-4">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1 fw-bold">S.A.Y COIN Data Manager</span>
-        </div>
-    </nav>
-
-    <div class="container-fluid px-4">
-        <div class="row">
-            <div class="col-12">
-                <div class="card-box">
-                    <h5>🛠️ Master File Input</h5>
-                    <p class="text-muted small">
-                        Please copy/paste the 5 columns from Excel.<br>
-                        <strong>Order: Passport no | Company | Name | Designation | Iqama No</strong>
-                    </p>
-                    <textarea id="pasteArea" class="input-area" placeholder="Paste Excel data here..."></textarea>
-                    
-                    <div id="debugPanel" class="debug-panel"></div>
-
-                    <div class="text-end mt-3">
-                        <button class="btn btn-outline-secondary me-2" onclick="location.reload()">🔄 Reset</button>
-                        <button class="btn btn-success px-4 fw-bold" onclick="processData()">🚀 Analyze</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="dashboard" style="display:none;">
-            <div class="row mb-2">
-                <div class="col-md-3">
-                    <div class="card-box text-center">
-                        <small class="text-muted">TOTAL COINS (QTY)</small>
-                        <div class="stat-val" id="disp_totalQty">0</div>
-                        <small class="text-success" id="disp_monthQty">This Month: 0</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card-box text-center">
-                        <small class="text-muted">TOTAL CASES (CALC)</small>
-                        <div class="stat-val" id="disp_totalCases">0</div>
-                        <small class="text-success" id="disp_monthCases">This Month: 0</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card-box text-center">
-                        <small class="text-muted">REDEMPTION RATE</small>
-                        <div class="stat-val text-warning" id="disp_usageRate">0%</div>
-                        <small id="disp_usedCount">Redeemed: 0</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card-box text-center">
-                        <small class="text-muted">MATCHED WORKERS</small>
-                        <div class="stat-val text-info" id="disp_activeWorkers">0</div>
-                        <small>Master DB: <span id="disp_masterCount">0</span> IDs</small>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row mb-3">
-                <div class="col-md-8">
-                    <div class="card-box" style="height: 400px;">
-                        <h6>📅 Monthly Trend (Coins)</h6>
-                        <canvas id="trendChart"></canvas>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card-box" style="height: 400px;">
-                        <h6>🏢 Company Share</h6>
-                        <canvas id="companyChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-12">
-                    <div class="card-box">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="mb-0">📋 Worker Details (Top 100)</h5>
-                            <div>
-                                <select id="sortSelect" class="form-select d-inline-block w-auto me-2" onchange="renderTable()">
-                                    <option value="Total_Qty">Total Coins (High)</option>
-                                    <option value="Total_Cases">Total Cases (High)</option>
-                                    <option value="Remaining_Qty">Remaining (High)</option>
-                                </select>
-                                <button class="btn btn-success fw-bold" onclick="downloadFullExcel()">
-                                    📥 Download Excel
-                                </button>
-                            </div>
-                        </div>
-                        <div class="table-responsive" style="max-height: 500px; overflow-y:auto;">
-                            <table class="table table-hover table-striped align-middle">
-                                <thead class="table-light sticky-top" style="z-index: 1;">
-                                    <tr>
-                                        <th>Passport</th>
-                                        <th>Company</th>
-                                        <th>Name</th>
-                                        <th>Cases</th>
-                                        <th>Coins (Qty)</th>
-                                        <th>Redeemed</th>
-                                        <th>Remaining</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="workerTableBody"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // ▼▼▼ INPUT GAS URL HERE ▼▼▼
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwXvYF5zExPs5_cmZmfeHyHO8ma7fVEv0gSZeWZJOTVJmdjRid-RWLVXEzeFcgC5D42/exec"; 
-        // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+      // ============================================================
+      // [설정] 여기에 GAS 웹 앱 URL을 붙여넣으세요.
+      // ============================================================
+      const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxcsf6m2ytuDS0v3x63k0ngeK2qUXhS3uHyu-1HADEjIRg4eBJmuiMBOVTbY5rnRA3d/exec"; 
+      
+      let finalExcelData = {};
 
-        let RAW_DATA = {}; 
-        let ANALYZED_DATA = { workers: [], companies: {}, managers: {}, reasons: {}, usageReasons: {}, monthlyLabels: [], monthlyTrend: {} };
-        let CURRENT_MONTH_KEY = "";
+      async function processData() {
+        const masterText = document.getElementById('masterDataInput').value;
+        const sheetId = document.getElementById('sheetIdInput').value;
 
-        // ★★★ THE CLEANING ENGINE ★★★
-        function normalizeID(val) {
-            if (val === undefined || val === null) return "";
-            // 1. Convert to String & UpperCase
-            let str = String(val).toUpperCase();
-            // 2. Remove ALL whitespace (spaces, tabs, non-breaking spaces)
-            str = str.replace(/[\s\u00A0]+/g, '');
-            // 3. Remove Leading Zeros (e.g. 00123 -> 123)
-            str = str.replace(/^0+/, '');
-            
-            return str;
+        if (!masterText.trim()) { alert("마스터 데이터를 붙여넣어 주세요."); return; }
+        if (!sheetId.trim()) { alert("구글 시트 ID를 입력해주세요."); return; }
+
+        document.getElementById('loadingSpinner').style.display = 'inline-block';
+
+        // 1. 마스터 데이터 파싱
+        const masterRows = masterText.split('\n').map(row => row.split('\t'));
+        const masterDict = parseMasterData(masterRows);
+        if (!masterDict) {
+          document.getElementById('loadingSpinner').style.display = 'none';
+          return; 
         }
 
-        function cleanText(val) {
-             if (val === undefined || val === null) return "";
-             return String(val).replace(/\s+/g, '').toUpperCase();
+        // 2. GAS API 호출 (fetch 사용)
+        try {
+          // GET 요청으로 sheetId 전달
+          const response = await fetch(`${GAS_API_URL}?sheetId=${sheetId}`);
+          
+          if (!response.ok) throw new Error("네트워크 응답이 올바르지 않습니다.");
+          
+          const result = await response.json(); // JSON 파싱
+
+          if (result.success) {
+            analyzeData(masterDict, result.data);
+          } else {
+            alert("데이터 실패: " + result.error);
+          }
+        } catch (err) {
+          alert("오류 발생: " + err.message + "\n\n(참고: GAS 배포 권한이 '모든 사용자'인지 확인하세요)");
+          console.error(err);
+        } finally {
+          document.getElementById('loadingSpinner').style.display = 'none';
         }
-        
-        function getMonthKey(dateInput) {
-            if (!dateInput) return "Unknown";
-            let dateObj;
-            if (typeof dateInput === 'number') {
-                dateObj = new Date(Math.round((dateInput - 25569) * 86400 * 1000));
-            } else {
-                dateObj = new Date(dateInput);
+      }
+
+      // --- 이하 로직은 이전과 100% 동일 ---
+
+      function parseMasterData(rows) {
+        if (rows.length < 2) return null;
+        const headers = rows[0].map(h => h.trim());
+        const colP = headers.indexOf("Passport no");
+        const colC = headers.indexOf("Company");
+        const colN = headers.indexOf("Name");
+        const colD = headers.indexOf("Designation");
+        const colI = headers.indexOf("Iqama No");
+
+        if (colP === -1) { alert("'Passport no' 열을 찾을 수 없습니다."); return null; }
+
+        const dict = new Map();
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.length <= colP) continue;
+          const pNo = String(row[colP]).trim();
+          if (pNo) dict.set(pNo, [row[colC], row[colN], row[colD], row[colI]]);
+        }
+        return dict;
+      }
+
+      function analyzeData(masterDict, coinData) {
+        const arrCats = coinData.categories;
+        const arrLogs = coinData.logs;
+        const arrUsage = coinData.usage;
+        const arrUsers = coinData.users;
+
+        const dictCatQty = new Map();
+        for (let i = 1; i < arrCats.length; i++) {
+          const key = `${arrCats[i][0]}|${arrCats[i][1]}|${arrCats[i][2]}|${arrCats[i][3]}`;
+          dictCatQty.set(key, Number(arrCats[i][4]));
+        }
+
+        const dictMgrStats = {}, dictCompStats = {}, dictCatStats = {}, dictUsageStats = {};
+        const dictWorkerStats = new Map();
+        const monthSet = new Set();
+        const logsDetail = [];
+
+        for (let i = 1; i < arrLogs.length; i++) {
+          const row = arrLogs[i];
+          if (!row[0]) continue;
+          let dateObj = new Date(row[0]);
+          let monthKey = "Unknown";
+          if (!isNaN(dateObj.getTime())) {
+            let m = dateObj.getMonth() + 1;
+            monthKey = dateObj.getFullYear() + "-" + (m < 10 ? '0' + m : m);
+            monthSet.add(monthKey);
+          }
+          const mgrID = String(row[1]);
+          const pNo = String(row[3]);
+          const catKey = `${row[5]}|${row[6]}|${row[7]}|${row[8]}`;
+          let qtyVal = dictCatQty.has(catKey) ? dictCatQty.get(catKey) : 1;
+          if (qtyVal === 0) qtyVal = 1;
+          const caseContrib = 1 / qtyVal;
+
+          let coName = "Unknown", wName = "", wDesig = "", wIqama = "";
+          if (masterDict.has(pNo)) {
+            const info = masterDict.get(pNo);
+            coName = info[0] || "Unknown";
+            wName = info[1]; wDesig = info[2]; wIqama = info[3];
+          }
+          logsDetail.push([...row, coName, wName, wDesig, wIqama]);
+
+          updateStats(dictMgrStats, mgrID, monthKey, caseContrib, 1);
+          updateStats(dictCatStats, catKey, monthKey, caseContrib, 1);
+          updateStats(dictCompStats, coName, monthKey, caseContrib, 1);
+
+          if (!dictWorkerStats.has(pNo)) {
+            dictWorkerStats.set(pNo, { name: wName, company: coName, desig: wDesig, iqama: wIqama, qty: 0, used: 0 });
+          }
+          dictWorkerStats.get(pNo).qty += 1;
+        }
+
+        const usageReasonCount = {};
+        for (let i = 1; i < arrUsage.length; i++) {
+          const row = arrUsage[i];
+          const pNo = String(row[3]);
+          const reason = String(row[5]);
+          usageReasonCount[reason] = (usageReasonCount[reason] || 0) + 1;
+          if (dictWorkerStats.has(pNo)) {
+            dictWorkerStats.get(pNo).used += 1;
+          } else {
+            let info = masterDict.has(pNo) ? masterDict.get(pNo) : ["","","",""];
+            dictWorkerStats.set(pNo, { name: info[1], company: info[0], desig: info[2], iqama: info[3], qty: 0, used: 1 });
+          }
+        }
+
+        const sortedMonths = Array.from(monthSet).sort();
+        finalExcelData = { sortedMonths, mgrStats: dictMgrStats, catStats: dictCatStats, compStats: dictCompStats, workerStats: dictWorkerStats, logsDetail, usageReasons: usageReasonCount, originalUsers: arrUsers, originalCats: arrCats, originalLogs: arrLogs };
+        renderDashboard();
+      }
+
+      function updateStats(mainDict, key, month, cases, coins) {
+        if (!mainDict[key]) mainDict[key] = {};
+        if (!mainDict[key][month]) mainDict[key][month] = { cases: 0, coins: 0 };
+        mainDict[key][month].cases += cases;
+        mainDict[key][month].coins += coins;
+      }
+
+      function renderDashboard() {
+        const d = finalExcelData;
+        const months = d.sortedMonths;
+
+        let htmlUsers = `<table class="table table-striped table-bordered table-sm"><thead><tr>`;
+        for(let i=0; i<6 && i<d.originalUsers[0].length; i++) htmlUsers += `<th>${d.originalUsers[0][i]}</th>`;
+        months.forEach(m => htmlUsers += `<th>${m}</th>`);
+        htmlUsers += `</tr></thead><tbody>`;
+        for(let i=1; i<d.originalUsers.length; i++) {
+          let row = d.originalUsers[i];
+          let mgrID = String(row[0]);
+          htmlUsers += `<tr>`;
+          for(let j=0; j<6 && j<row.length; j++) htmlUsers += `<td>${row[j]}</td>`;
+          months.forEach(m => {
+            let txt = "";
+            if (d.mgrStats[mgrID] && d.mgrStats[mgrID][m]) txt = `${Math.round(d.mgrStats[mgrID][m].cases)}(${d.mgrStats[mgrID][m].coins})`;
+            htmlUsers += `<td>${txt}</td>`;
+          });
+          htmlUsers += `</tr>`;
+        }
+        htmlUsers += `</tbody></table>`;
+        document.getElementById('div-users').innerHTML = htmlUsers;
+
+        let htmlComp = `<table class="table table-striped table-bordered table-sm"><thead><tr><th>Company</th><th>Total</th>`;
+        months.forEach(m => htmlComp += `<th>${m}</th>`);
+        htmlComp += `</tr></thead><tbody>`;
+        Object.keys(d.compStats).sort().forEach(comp => {
+          let totalCases = 0, totalCoins = 0;
+          let rowHtml = "";
+          months.forEach(m => {
+            let txt = "";
+            if (d.compStats[comp][m]) {
+              let s = d.compStats[comp][m];
+              txt = `${Math.round(s.cases)}(${s.coins})`;
+              totalCases += s.cases; totalCoins += s.coins;
             }
-            if (isNaN(dateObj.getTime())) return "Unknown";
-            const y = dateObj.getFullYear();
-            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
-            return `${y}-${m}`;
+            rowHtml += `<td>${txt}</td>`;
+          });
+          htmlComp += `<tr><td>${comp}</td><td>${Math.round(totalCases)}(${totalCoins})</td>${rowHtml}</tr>`;
+        });
+        htmlComp += `</tbody></table>`;
+        document.getElementById('div-comp').innerHTML = htmlComp;
+
+        let htmlWorker = `<table class="table table-striped table-bordered table-sm"><thead><tr><th>Passport</th><th>Name</th><th>Company</th><th>Designation</th><th>Iqama</th><th>Qty</th><th>Used</th><th>Remain</th></tr></thead><tbody>`;
+        d.workerStats.forEach((val, key) => {
+           htmlWorker += `<tr><td>${key}</td><td>${val.name}</td><td>${val.company}</td><td>${val.desig}</td><td>${val.iqama}</td><td>${val.qty}</td><td>${val.used}</td><td>${val.qty - val.used}</td></tr>`;
+        });
+        htmlWorker += `</tbody></table>`;
+        document.getElementById('div-worker').innerHTML = htmlWorker;
+        document.getElementById('div-cat').innerHTML = "<p>엑셀 다운로드 시 전체 데이터를 확인할 수 있습니다.</p>";
+        document.getElementById('dashboard-area').style.display = 'block';
+      }
+
+      function downloadExcel() {
+        if (!finalExcelData.sortedMonths) return;
+        const d = finalExcelData;
+        const wb = XLSX.utils.book_new();
+
+        let usersData = [];
+        usersData.push([...d.originalUsers[0].slice(0,6), ...d.sortedMonths]);
+        for(let i=1; i<d.originalUsers.length; i++) {
+           let row = [...d.originalUsers[i].slice(0,6)];
+           let mgrID = String(row[0]);
+           d.sortedMonths.forEach(m => {
+             row.push(d.mgrStats[mgrID] && d.mgrStats[mgrID][m] ? `${Math.round(d.mgrStats[mgrID][m].cases)}(${d.mgrStats[mgrID][m].coins})` : "");
+           });
+           usersData.push(row);
         }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(usersData), "Users_Summary");
 
-        function init() {
-            const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            CURRENT_MONTH_KEY = `${y}-${m}`;
+        let logHeader = [...(d.originalLogs[0] || []), "Company", "Name", "Designation", "Iqama No"];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([logHeader, ...d.logsDetail]), "Logs_Detail");
+
+        let workerData = [["Passport_No", "Name", "Company", "Designation", "Iqama_No", "Quantity", "Used", "Remain"]];
+        d.workerStats.forEach((val, key) => workerData.push([key, val.name, val.company, val.desig, val.iqama, val.qty, val.used, val.qty - val.used]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(workerData), "Worker_Status");
+
+        let reasonData = [["Reason", "Count"]];
+        Object.keys(d.usageReasons).forEach(k => reasonData.push([k, d.usageReasons[k]]));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(reasonData), "Usage_Reason");
+
+        let catData = [];
+        catData.push(["Cat1", "Cat2", "Cat3", "Cat4", "Total", ...d.sortedMonths]);
+        for(let i=1; i<d.originalCats.length; i++) {
+          let r = d.originalCats[i];
+          let catKey = `${r[0]}|${r[1]}|${r[2]}|${r[3]}`;
+          let row = [r[0], r[1], r[2], r[3]];
+          let totalCases = 0, totalCoins = 0, monthVals = [];
+          d.sortedMonths.forEach(m => {
+            if (d.catStats[catKey] && d.catStats[catKey][m]) {
+              let s = d.catStats[catKey][m];
+              monthVals.push(`${Math.round(s.cases)}(${s.coins})`);
+              totalCases += s.cases; totalCoins += s.coins;
+            } else { monthVals.push(""); }
+          });
+          row.push(`${Math.round(totalCases)}(${totalCoins})`);
+          catData.push(row.concat(monthVals));
         }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(catData), "Category_Stats");
 
-        async function processData() {
-            init();
-            const inputVal = document.getElementById('pasteArea').value;
-            
-            document.getElementById('loading').style.display = 'flex';
-            try {
-                if (!RAW_DATA.logs) {
-                    const response = await fetch(GAS_URL);
-                    RAW_DATA = await response.json();
-                }
-                
-                let masterRows = [];
-                if (inputVal.trim()) {
-                    const parsed = Papa.parse(inputVal, { delimiter: "\t", header: false });
-                    masterRows = parsed.data;
-                }
+        let compData = [["Company", "Total", ...d.sortedMonths]];
+        Object.keys(d.compStats).sort().forEach(comp => {
+          let row = [comp];
+          let totalCases = 0, totalCoins = 0, monthVals = [];
+          d.sortedMonths.forEach(m => {
+             if (d.compStats[comp][m]) {
+               let s = d.compStats[comp][m];
+               monthVals.push(`${Math.round(s.cases)}(${s.coins})`);
+               totalCases += s.cases; totalCoins += s.coins;
+             } else { monthVals.push(""); }
+          });
+          row.push(`${Math.round(totalCases)}(${totalCoins})`);
+          compData.push(row.concat(monthVals));
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(compData), "Company_Stats");
 
-                performAnalysis(masterRows);
-                renderDashboard();
-
-            } catch (e) {
-                console.error(e);
-                alert("Error: " + e.message);
-            } finally {
-                document.getElementById('loading').style.display = 'none';
-            }
-        }
-
-        function performAnalysis(masterRows) {
-            const workers = {}; 
-            const companies = {}; 
-            const managers = {}; 
-            const reasons = {}; 
-            const usageReasons = {}; 
-            const monthlySet = new Set();
-            const monthlyTrend = {};
-
-            // ★ 1. Create Master Map (With Robust Cleaning)
-            const masterMap = {};
-            let masterDebugSamples = [];
-            
-            masterRows.forEach((row, idx) => {
-                if (row.length < 2) return; // Skip empty rows
-                const rawID = row[0];
-                const cleanID = normalizeID(rawID);
-                
-                // Skip Header
-                if (cleanID.includes("PASSPORT") || cleanID === "") return;
-
-                if (idx < 5) masterDebugSamples.push(`${rawID} -> [${cleanID}]`); // Debug Sample
-
-                masterMap[cleanID] = {
-                    Company: row[1] || "Unknown",
-                    Name: row[2] || "Unknown",
-                    Designation: row[3] || "-",
-                    Iqama: row[4] || "-"
-                };
-            });
-
-            // Show Debug Panel
-            const debugPanel = document.getElementById('debugPanel');
-            debugPanel.style.display = 'block';
-            debugPanel.innerHTML = `<strong>DEBUG INFO:</strong><br>Parsed ${Object.keys(masterMap).length} IDs from Master File.<br>Sample Parsing: ${masterDebugSamples.join(', ')}`;
-
-            // 2. Map Categories
-            const catMap = {};
-            if(RAW_DATA.categories) {
-                RAW_DATA.categories.slice(1).forEach(row => {
-                    if(!row[0]) return;
-                    const key = cleanText(row[0] + "|" + row[1] + "|" + row[2] + "|" + row[3]);
-                    catMap[key] = Number(row[4]) || 1; 
-                });
-            }
-
-            // 3. Map Managers
-            const managerNameMap = {};
-            if(RAW_DATA.users) {
-                RAW_DATA.users.slice(1).forEach(row => {
-                    managerNameMap[cleanText(row[0])] = row[2];
-                });
-            }
-
-            // 4. Process Logs (Source of Truth)
-            const allLogPassports = new Set();
-
-            if(RAW_DATA.logs) {
-                RAW_DATA.logs.slice(1).forEach(row => {
-                    if(!row[3]) return; 
-
-                    const ts = row[0];
-                    const mId = cleanText(row[1]); 
-                    const ppt = normalizeID(row[3]); // ★ Apply SAME cleaning
-                    const coinNo = String(row[4]);
-                    
-                    if(!ppt) return; 
-                    
-                    allLogPassports.add(ppt); 
-
-                    const r1 = row[5], r2 = row[6], r3 = row[7], r4 = row[8];
-                    const rawReasonKey = cleanText(r1 + "|" + r2 + "|" + r3 + "|" + r4);
-                    
-                    const baseQty = catMap[rawReasonKey] || 1; 
-                    const calculatedCase = (baseQty > 0) ? (1 / baseQty) : 0; 
-                    
-                    const month = getMonthKey(ts);
-                    const isUsed = coinNo.includes('*');
-                    monthlySet.add(month);
-
-                    // A. Worker Stats
-                    if (!workers[ppt]) workers[ppt] = { cases: 0.0, qty: 0, usedQty: 0, monthly: {} };
-                    
-                    workers[ppt].qty += 1; 
-                    workers[ppt].cases += calculatedCase; 
-                    if (isUsed) workers[ppt].usedQty += 1;
-
-                    if (!workers[ppt].monthly[month]) workers[ppt].monthly[month] = { qty: 0, cases: 0.0 };
-                    workers[ppt].monthly[month].qty += 1;
-                    workers[ppt].monthly[month].cases += calculatedCase;
-
-                    // B. Manager Stats
-                    if (!managers[mId]) managers[mId] = { name: managerNameMap[mId] || row[2], totalCases: 0.0, totalQty: 0, monthly: {} };
-                    managers[mId].totalQty += 1;
-                    managers[mId].totalCases += calculatedCase;
-                    if (!managers[mId].monthly[month]) managers[mId].monthly[month] = { qty: 0, cases: 0.0 };
-                    managers[mId].monthly[month].qty += 1;
-                    managers[mId].monthly[month].cases += calculatedCase;
-
-                    // C. Reason Stats
-                    const displayKey = rawReasonKey;
-                    if (!reasons[displayKey]) reasons[displayKey] = { texts: [r1, r2, r3, r4], cases: 0.0, qty: 0 };
-                    reasons[displayKey].qty += 1;
-                    reasons[displayKey].cases += calculatedCase;
-
-                    // D. Trend
-                    if (!monthlyTrend[month]) monthlyTrend[month] = 0;
-                    monthlyTrend[month] += 1;
-                });
-            }
-
-            // Usage Stats
-            if(RAW_DATA.usage) {
-                RAW_DATA.usage.slice(1).forEach(row => {
-                    const month = getMonthKey(row[0]);
-                    const reason = row[5] || "Unspecified";
-                    if (!usageReasons[reason]) usageReasons[reason] = { total: 0, monthly: {} };
-                    usageReasons[reason].total++;
-                    if (!usageReasons[reason].monthly[month]) usageReasons[reason].monthly[month] = 0;
-                    usageReasons[reason].monthly[month]++;
-                });
-            }
-
-            // 5. Finalize Data (Merge Logs with Master Info)
-            ANALYZED_DATA.workers = [];
-            const allIDs = new Set([...allLogPassports, ...Object.keys(masterMap)]);
-
-            allIDs.forEach(ppt => {
-                const info = workers[ppt]; 
-                if (info) {
-                    // It has log data! Match with Master Map
-                    const masterInfo = masterMap[ppt] || { Company: "Unknown (Not in Master)", Name: "Unknown", Designation: "-" };
-                    
-                    ANALYZED_DATA.workers.push({
-                        Passport: ppt,
-                        Company: masterInfo.Company,
-                        Name: masterInfo.Name,
-                        Designation: masterInfo.Designation,
-                        Total_Cases: Math.round(info.cases),
-                        Total_Qty: info.qty,
-                        Used_Qty: info.usedQty,
-                        Remaining_Qty: info.qty - info.usedQty,
-                        Monthly_Data: info.monthly
-                    });
-
-                    const compName = masterInfo.Company;
-                    if (!companies[compName]) companies[compName] = { totalQty: 0, monthly: {} };
-                    companies[compName].totalQty += info.qty;
-                    Object.keys(info.monthly).forEach(m => {
-                        if (!companies[compName].monthly[m]) companies[compName].monthly[m] = 0;
-                        companies[compName].monthly[m] += info.monthly[m].qty;
-                    });
-                }
-            });
-
-            ANALYZED_DATA.companies = companies;
-            ANALYZED_DATA.managers = managers;
-            ANALYZED_DATA.reasons = reasons;
-            ANALYZED_DATA.usageReasons = usageReasons;
-            ANALYZED_DATA.monthlyLabels = Array.from(monthlySet).sort();
-            ANALYZED_DATA.monthlyTrend = monthlyTrend;
-        }
-
-        function renderDashboard() {
-            document.getElementById('dashboard').style.display = 'block';
-            
-            const workers = ANALYZED_DATA.workers;
-            const totalQty = workers.reduce((sum, w) => sum + w.Total_Qty, 0);
-            const totalCases = workers.reduce((sum, w) => sum + w.Total_Cases, 0);
-            const totalUsed = workers.reduce((sum, w) => sum + w.Used_Qty, 0);
-
-            let monthQty = 0;
-            let monthCases = 0.0;
-            workers.forEach(w => {
-                if (w.Monthly_Data[CURRENT_MONTH_KEY]) {
-                    monthQty += w.Monthly_Data[CURRENT_MONTH_KEY].qty;
-                    monthCases += w.Monthly_Data[CURRENT_MONTH_KEY].cases;
-                }
-            });
-
-            document.getElementById('disp_totalQty').innerText = totalQty.toLocaleString();
-            document.getElementById('disp_monthQty').innerText = `This Month: ${monthQty.toLocaleString()}`;
-            document.getElementById('disp_totalCases').innerText = totalCases.toLocaleString();
-            document.getElementById('disp_monthCases').innerText = `This Month: ${Math.round(monthCases).toLocaleString()}`;
-            
-            const usageRate = totalQty === 0 ? 0 : ((totalUsed / totalQty) * 100).toFixed(1);
-            document.getElementById('disp_usageRate').innerText = usageRate + "%";
-            document.getElementById('disp_usedCount').innerText = `Redeemed: ${totalUsed.toLocaleString()}`;
-            
-            document.getElementById('disp_activeWorkers').innerText = workers.length.toLocaleString();
-            // Count unique keys in master map
-            const masterCount = document.getElementById('pasteArea').value.trim() ? document.getElementById('pasteArea').value.split('\n').length : 0;
-            document.getElementById('disp_masterCount').innerText = masterCount.toLocaleString();
-            
-            renderCharts();
-            renderTable();
-        }
-
-        function renderTable() {
-            const tbody = document.getElementById('workerTableBody');
-            tbody.innerHTML = "";
-            const sortBy = document.getElementById('sortSelect').value;
-            const sorted = [...ANALYZED_DATA.workers].sort((a, b) => b[sortBy] - a[sortBy]).slice(0, 100);
-
-            sorted.forEach(w => {
-                const unknownClass = w.Company.includes("Unknown") ? "text-warn" : "";
-                tbody.innerHTML += `
-                    <tr>
-                        <td class="${unknownClass}">${w.Passport}</td>
-                        <td class="${unknownClass}">${w.Company}</td>
-                        <td class="${unknownClass}">${w.Name}</td>
-                        <td>${w.Total_Cases}</td>
-                        <td class="fw-bold text-success">${w.Total_Qty}</td>
-                        <td class="text-danger">${w.Used_Qty}</td>
-                        <td class="fw-bold">${w.Remaining_Qty}</td>
-                    </tr>
-                `;
-            });
-        }
-
-        function renderCharts() {
-            const labels = ANALYZED_DATA.monthlyLabels;
-            const trendData = labels.map(m => ANALYZED_DATA.monthlyTrend[m] || 0);
-            
-            if (Chart.getChart("trendChart")) Chart.getChart("trendChart").destroy();
-            if (Chart.getChart("companyChart")) Chart.getChart("companyChart").destroy();
-
-            new Chart(document.getElementById('trendChart'), {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Total Coins',
-                        data: trendData,
-                        borderColor: '#198754',
-                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
-                        fill: true
-                    }]
-                }
-            });
-
-            const compEntries = Object.entries(ANALYZED_DATA.companies)
-                .sort((a, b) => b[1].totalQty - a[1].totalQty)
-                .slice(0, 5);
-            
-            new Chart(document.getElementById('companyChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: compEntries.map(x => x[0]),
-                    datasets: [{
-                        data: compEntries.map(x => x[1].totalQty),
-                        backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b']
-                    }]
-                }
-            });
-        }
-
-        function downloadFullExcel() {
-            if (ANALYZED_DATA.workers.length === 0) return alert("No data to download.");
-            const wb = XLSX.utils.book_new();
-            const months = ANALYZED_DATA.monthlyLabels;
-
-            const ws1Data = ANALYZED_DATA.workers.map(w => {
-                const row = { "Passport": w.Passport, "Company": w.Company, "Name": w.Name, "Designation": w.Designation, "Total Cases": w.Total_Cases, "Total Coins": w.Total_Qty, "Redeemed": w.Used_Qty, "Remaining": w.Remaining_Qty };
-                months.forEach(m => row[`${m} (Qty)`] = w.Monthly_Data[m] ? w.Monthly_Data[m].qty : 0);
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws1Data), "Workers_Monthly");
-
-            const ws2Data = Object.keys(ANALYZED_DATA.companies).map(c => {
-                const d = ANALYZED_DATA.companies[c];
-                const row = { "Company": c, "Total Coins": d.totalQty };
-                months.forEach(m => row[m] = d.monthly[m] || 0);
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws2Data), "Company_Stats");
-
-            const ws3Data = Object.keys(ANALYZED_DATA.managers).map(id => {
-                const d = ANALYZED_DATA.managers[id];
-                const row = { "ID": id, "Name": d.name, "Total Cases": Math.round(d.totalCases), "Total Coins": d.totalQty };
-                months.forEach(m => {
-                    row[`${m} (Qty)`] = d.monthly[m] ? d.monthly[m].qty : 0;
-                    row[`${m} (Cases)`] = d.monthly[m] ? Math.round(d.monthly[m].cases) : 0;
-                });
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws3Data), "Manager_Stats");
-
-            const ws4Data = Object.keys(ANALYZED_DATA.reasons).map(k => {
-                const d = ANALYZED_DATA.reasons[k];
-                return { "Top_KO": d.texts[0], "Bottom_KO": d.texts[1], "Top_EN": d.texts[2], "Bottom_EN": d.texts[3], "Frequency (Cases)": Math.round(d.cases), "Coins Distributed": d.qty };
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws4Data), "Reason_Details");
-
-            const ws5Data = Object.keys(ANALYZED_DATA.usageReasons).map(u => {
-                const d = ANALYZED_DATA.usageReasons[u];
-                const row = { "Usage Reason": u, "Total Count": d.total };
-                months.forEach(m => row[m] = d.monthly[m] || 0);
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ws5Data), "Usage_Stats");
-
-            XLSX.writeFile(wb, `SAY_COIN_Analysis_${CURRENT_MONTH_KEY}.xlsx`);
-        }
+        let today = new Date();
+        let fName = "S.A.Y_Coin_Data_" + today.getFullYear().toString().substr(2,2) + 
+                    (today.getMonth()+1 < 10 ? '0' : '') + (today.getMonth()+1) + 
+                    (today.getDate() < 10 ? '0' : '') + today.getDate() + ".xlsx";
+        XLSX.writeFile(wb, fName);
+      }
     </script>
-</body>
+  </body>
 </html>
