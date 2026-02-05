@@ -212,23 +212,40 @@
             }
         }
 
-        async function uploadMasterData() {
-            const rawText = document.getElementById('pasteArea').value.trim();
-            if (!rawText) return alert("데이터를 입력하세요.");
-            const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
-            if (rows.length === 0 || rows[0].length < 4) return alert("올바른 형식이 아닙니다. (4개 열 필요)");
-            if (!confirm(`총 ${rows.length}명의 데이터를 업로드 하시겠습니까?\n(중복된 여권번호는 자동으로 건너뜁니다)`)) return;
+       async function uploadMasterData() {
+    const rawText = document.getElementById('pasteArea').value.trim();
+    if (!rawText) return alert("데이터를 입력하세요.");
+    
+    const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
+    if (rows.length === 0 || rows[0].length < 4) return alert("올바른 형식이 아닙니다. (4개 열 필요)");
+    
+    if (!confirm(`총 ${rows.length}명의 데이터를 업로드 하시겠습니까?\n(중복된 여권번호는 자동으로 건너뜁니다)`)) return;
 
-            try {
-                const res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ rows: rows }) });
-                const json = await res.json();
-                if (json.status === 'success') {
-                    alert(`처리 완료!\n- 추가됨: ${json.added}명\n- 건너뜀(중복): ${json.skipped}명`);
-                    toggleModal();
-                    fetchData();
-                } else { alert("업로드 오류: " + json.message); }
-            } catch (e) { alert("네트워크 오류 발생"); }
+    try {
+        // [변경점] fetch 옵션 강화: redirect 'follow' 및 Content-Type 명시
+        const res = await fetch(GAS_URL, {
+            method: 'POST',
+            redirect: 'follow', // 구글 스크립트의 리다이렉트 응답을 따라감
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8", // 브라우저 CORS Preflight 방지용 트릭
+            },
+            body: JSON.stringify({ rows: rows })
+        });
+
+        const json = await res.json();
+        
+        if (json.status === 'success') {
+            alert(`처리 완료!\n- 추가됨: ${json.added}명\n- 건너뜀(중복): ${json.skipped}명`);
+            toggleModal();
+            fetchData(); 
+        } else {
+            alert("업로드 오류: " + json.message);
         }
+    } catch (e) {
+        console.error(e); // F12 개발자 도구 콘솔에서 상세 에러 확인 가능
+        alert("네트워크 오류 발생: " + e.message);
+    }
+}
 
         // ===============================================
         // [신규 기능] 엑셀 다운로드 (SheetJS 사용)
