@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y COIN Integrated Dashboard</title>
+    <title>S.A.Y COIN Secure Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
@@ -22,20 +23,20 @@
     <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
             <h1 class="text-3xl font-bold text-gray-800">
-                <i class="fas fa-coins text-yellow-500 mr-2"></i>
-                <span data-lang="title">S.A.Y COIN 통합 관제</span>
+                <i class="fas fa-shield-alt text-green-600 mr-2"></i>
+                <span data-lang="title">S.A.Y COIN 보안 대시보드</span>
             </h1>
-            <p class="text-gray-500 text-sm mt-1" data-lang="subtitle">실시간 발행, 회수 및 협력사 현황</p>
+            <p class="text-gray-500 text-sm mt-1" data-lang="subtitle">서버 저장 없는 실시간 로컬 분석</p>
         </div>
         <div class="flex gap-2 flex-wrap justify-end">
             <button onclick="toggleLanguage()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow font-bold">
                 <i class="fas fa-globe mr-2"></i><span id="langBtnText">EN</span>
             </button>
             <button onclick="fetchData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-sync-alt mr-2"></i><span data-lang="refresh">새로고침</span>
+                <i class="fas fa-sync-alt mr-2"></i><span data-lang="refresh">데이터 갱신</span>
             </button>
             <button onclick="toggleModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-file-excel mr-2"></i><span data-lang="btn_upload">마스터파일 업로드</span>
+                <i class="fas fa-paste mr-2"></i><span data-lang="btn_upload">마스터정보 입력(Session)</span>
             </button>
             <button onclick="downloadExcel()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow">
                 <i class="fas fa-download mr-2"></i><span data-lang="btn_download">통계 다운로드</span>
@@ -45,11 +46,23 @@
 
     <div id="loading" class="text-center py-20">
         <i class="fas fa-circle-notch fa-spin text-4xl text-blue-500"></i>
-        <p class="mt-4 text-gray-600" data-lang="loading">데이터 분석 중...</p>
+        <p class="mt-4 text-gray-600" data-lang="loading">데이터 불러오는 중...</p>
     </div>
 
     <div id="dashboard" class="hidden space-y-8">
         
+        <div id="masterAlert" class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+            <div class="flex">
+                <div class="flex-shrink-0"><i class="fas fa-exclamation-triangle text-yellow-400"></i></div>
+                <div class="ml-3">
+                    <p class="text-sm text-yellow-700" data-lang="alert_msg">
+                        현재 마스터 정보(이름, 소속 등)가 입력되지 않아 '미등록'으로 표시됩니다.<br>
+                        우측 상단 <b>'마스터정보 입력'</b> 버튼을 눌러 엑셀 데이터를 붙여넣어 주세요. (서버 전송 X)
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="card p-6 border-l-4 border-blue-500">
                 <p class="text-gray-500 text-sm" data-lang="card_issued">총 지급 코인</p>
@@ -71,11 +84,11 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_general">일반 지급 사유 (General)</h3>
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_general">일반 지급 사유</h3>
                 <canvas id="chartGeneral"></canvas>
             </div>
             <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_hse">HSE 지급 사유 (Safety)</h3>
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_hse">HSE 지급 사유</h3>
                 <canvas id="chartHSE"></canvas>
             </div>
              <div class="card p-6">
@@ -87,22 +100,24 @@
         </div>
 
         <div class="card p-6">
-            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_trend">협력사별 코인 지급 추세 (월별)</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-700" data-lang="chart_trend">협력사별 코인 지급 추세</h3>
+                <span class="text-xs text-blue-500 font-bold" id="masterStatus">● Local Master Data: Empty</span>
+            </div>
             <div class="h-80">
                 <canvas id="chartTrend"></canvas>
             </div>
-            <p class="text-xs text-gray-400 mt-2 text-right">* Logs 시트와 FGIP_masterfile을 패스포트 번호로 매칭한 결과입니다.</p>
         </div>
         
         <div class="card p-6">
-            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="table_title">협력사 코인 잔액 (Subcon_Logs 기준)</h3>
+            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="table_title">협력사 코인 잔액 (Subcon_Logs)</h3>
             <div class="overflow-x-auto max-h-96">
                 <table class="min-w-full text-sm text-left text-gray-500">
                     <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
                         <tr>
                             <th class="px-6 py-3" data-lang="th_name">협력사명</th>
-                            <th class="px-6 py-3 text-right" data-lang="th_give">총 지급(Give)</th>
-                            <th class="px-6 py-3 text-right" data-lang="th_use">총 사용(Use)</th>
+                            <th class="px-6 py-3 text-right" data-lang="th_give">총 지급</th>
+                            <th class="px-6 py-3 text-right" data-lang="th_use">총 사용</th>
                             <th class="px-6 py-3 text-right font-bold" data-lang="th_balance">현재 잔액</th>
                         </tr>
                     </thead>
@@ -117,19 +132,22 @@
         <div class="modal-container bg-white w-11/12 md:max-w-3xl mx-auto rounded shadow-lg z-50 overflow-y-auto">
             <div class="modal-content py-4 text-left px-6">
                 <div class="flex justify-between items-center pb-3">
-                    <p class="text-2xl font-bold" data-lang="modal_title">마스터파일 업로드</p>
+                    <p class="text-2xl font-bold" data-lang="modal_title">마스터 정보 입력 (세션 전용)</p>
                     <div class="cursor-pointer z-50" onclick="toggleModal()">
                         <i class="fas fa-times"></i>
                     </div>
                 </div>
-                <p class="text-sm text-gray-500 mb-4" data-lang="modal_desc">
-                    엑셀 파일에서 <b>Passport no, Company, Name, Designation</b> 4개 열을 복사하여 아래에 붙여넣으세요.<br>
-                    <span class="text-red-500">* 이미 등록된 여권번호는 건너뛰고(Skip), 새로운 인원만 추가됩니다.</span>
+                <div class="bg-blue-50 p-3 rounded mb-3 text-sm text-blue-800">
+                    <i class="fas fa-lock mr-2"></i>
+                    <span data-lang="modal_security">이 데이터는 서버로 전송되지 않고 브라우저에서만 사용됩니다.</span>
+                </div>
+                <p class="text-sm text-gray-500 mb-2" data-lang="modal_desc">
+                    엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.
                 </p>
-                <textarea id="pasteArea" class="w-full h-64 p-2 border rounded bg-gray-50 text-xs font-mono" placeholder="Passport No | Company | Name | Designation&#10;A1234567 | SEC | Hong Gil Dong | Manager&#10;..."></textarea>
+                <textarea id="pasteArea" class="w-full h-64 p-2 border rounded bg-gray-50 text-xs font-mono" placeholder="A1234567 | SEC | Hong Gil Dong | Manager&#10;..."></textarea>
                 <div class="flex justify-end pt-4 gap-2">
                     <button onclick="toggleModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" data-lang="btn_close">닫기</button>
-                    <button onclick="uploadMasterData()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" data-lang="btn_submit">업로드 하기</button>
+                    <button onclick="applyMasterData()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" data-lang="btn_apply">적용하기</button>
                 </div>
             </div>
         </div>
@@ -137,38 +155,50 @@
 
     <script>
         // ==========================================
-        // [설정] 배포된 GAS 웹 앱 URL을 넣으세요
+        // [설정] 배포된 GAS URL (exec로 끝나는 주소)
         // ==========================================
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbwbrlprN7G-b-wJsGFOkzJgjvAKWKpiqYp2jujfvz8h0yy-m0EiG08OOZ_T6-9hXste/exec"; 
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxVF66kP7qUr092RVdsXctYztfGVtszSuWJmLKa9Ak6-FTR47jgoLif9EYbC-xaFYGo/exec"; 
 
+        // 전역 상태
         let currentLang = 'ko';
-        let cachedData = null;
+        let cachedData = null;      // 서버에서 가져온 GAS 데이터 (Logs, Usage...)
+        let localMasterMap = {};    // 브라우저에 붙여넣은 로컬 마스터 데이터 { "Passport": {info...} }
         let charts = {};
 
         const t = {
-            title: { ko: "S.A.Y COIN 통합 관제", en: "S.A.Y COIN Integrated Dashboard" },
-            subtitle: { ko: "실시간 발행, 회수 및 협력사 현황", en: "Real-time Issuance, Redemption & Subcon Status" },
-            refresh: { ko: "새로고침", en: "Refresh" },
-            btn_upload: { ko: "마스터파일 업로드", en: "Upload Master File" },
-            btn_download: { ko: "통계 다운로드", en: "Download Stats" },
-            loading: { ko: "데이터 분석 중...", en: "Analyzing Data..." },
+            title: { ko: "S.A.Y COIN 보안 대시보드", en: "S.A.Y COIN Secure Dashboard" },
+            subtitle: { ko: "서버 저장 없는 실시간 로컬 분석", en: "Client-side Analysis (No Server Storage)" },
+            refresh: { ko: "데이터 갱신", en: "Refresh Data" },
+            btn_upload: { ko: "마스터정보 입력(Session)", en: "Input Master Data" },
+            btn_download: { ko: "통계 다운로드", en: "Download Excel" },
+            loading: { ko: "데이터 불러오는 중...", en: "Loading..." },
+            alert_msg: { ko: "현재 마스터 정보(이름, 소속 등)가 입력되지 않아 '미등록'으로 표시됩니다.<br>우측 상단 <b>'마스터정보 입력'</b> 버튼을 눌러 엑셀 데이터를 붙여넣어 주세요. (서버 전송 X)", en: "Master data is missing. Charts will show 'Unregistered'.<br>Please click <b>'Input Master Data'</b> to paste Excel data locally." },
+            
+            // Cards
             card_issued: { ko: "총 지급 코인", en: "Total Issued" },
             card_used: { ko: "총 사용(회수) 코인", en: "Total Redeemed" },
             card_remain: { ko: "시중 유통량", en: "Circulation" },
             card_rate: { ko: "코인 회수율", en: "Redemption Rate" },
-            chart_general: { ko: "일반 지급 사유 (General)", en: "Issued by Reason (General)" },
-            chart_hse: { ko: "HSE 지급 사유 (Safety)", en: "Issued by Reason (HSE)" },
+            
+            // Charts
+            chart_general: { ko: "일반 지급 사유", en: "Issued by Reason (General)" },
+            chart_hse: { ko: "HSE 지급 사유", en: "Issued by Reason (HSE)" },
             chart_status: { ko: "발행 vs 회수 비율", en: "Issued vs Redeemed" },
-            chart_trend: { ko: "협력사별 코인 지급 추세 (월별)", en: "Monthly Issuance Trend by Company" },
+            chart_trend: { ko: "협력사별 코인 지급 추세", en: "Monthly Trend by Company" },
+            
+            // Table
             table_title: { ko: "협력사 코인 잔액 (Subcon_Logs)", en: "Subcontractor Coin Balance" },
             th_name: { ko: "협력사명", en: "Company" },
             th_give: { ko: "총 지급", en: "Given" },
             th_use: { ko: "총 사용", en: "Used" },
             th_balance: { ko: "잔액", en: "Balance" },
-            modal_title: { ko: "마스터파일 업로드", en: "Upload Master File" },
-            modal_desc: { ko: "엑셀에서 [Passport no, Company, Name, Designation] 열을 복사해 붙여넣으세요.<br><span class='text-red-500'>* 이미 등록된 여권번호는 건너뛰고(Skip), 새로운 인원만 추가됩니다.</span>", en: "Copy [Passport, Company, Name, Designation] cols.<br><span class='text-red-500'>* Skips duplicates based on Passport No.</span>" },
+            
+            // Modal
+            modal_title: { ko: "마스터 정보 입력 (세션 전용)", en: "Input Master Data (Session Only)" },
+            modal_security: { ko: "이 데이터는 서버로 전송되지 않고 브라우저에서만 사용됩니다.", en: "Data is processed locally in your browser. Not sent to server." },
+            modal_desc: { ko: "엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.", en: "Paste [Passport, Company, Name, Designation] columns here." },
             btn_close: { ko: "닫기", en: "Close" },
-            btn_submit: { ko: "업로드", en: "Upload" },
+            btn_apply: { ko: "적용하기", en: "Apply Data" }
         };
 
         window.onload = function() { applyLanguage(); fetchData(); };
@@ -194,8 +224,9 @@
             document.body.classList.toggle('modal-active');
         }
 
+        // 1. 데이터 가져오기 (Logs, Usage 등만 가져옴)
         async function fetchData() {
-            if (GAS_URL.includes("YOUR_GAS")) return alert("GAS URL을 확인하세요.");
+            if (GAS_URL.includes("YOUR_GAS")) return alert("GAS URL을 설정해주세요.");
             document.getElementById('loading').classList.remove('hidden');
             document.getElementById('dashboard').classList.add('hidden');
             try {
@@ -212,149 +243,39 @@
             }
         }
 
-       async function uploadMasterData() {
-    const rawText = document.getElementById('pasteArea').value.trim();
-    if (!rawText) return alert("데이터를 입력하세요.");
-    
-    const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
-    if (rows.length === 0 || rows[0].length < 4) return alert("올바른 형식이 아닙니다. (4개 열 필요)");
-    
-    if (!confirm(`총 ${rows.length}명의 데이터를 업로드 하시겠습니까?\n(중복된 여권번호는 자동으로 건너뜁니다)`)) return;
+        // 2. [로컬] 마스터 데이터 적용 (서버 전송 없음!)
+        function applyMasterData() {
+            const rawText = document.getElementById('pasteArea').value.trim();
+            if (!rawText) return alert("데이터를 입력하세요.");
+            const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
+            
+            if (rows.length === 0 || rows[0].length < 4) return alert("최소 4개 열(Passport, Company, Name, Designation)이 필요합니다.");
+            
+            // 로컬 변수에 저장
+            let count = 0;
+            localMasterMap = {}; // 초기화
+            rows.forEach(r => {
+                if(r[0]) {
+                    localMasterMap[r[0]] = { company: r[1], name: r[2], desig: r[3] };
+                    count++;
+                }
+            });
 
-    try {
-        // [변경점] fetch 옵션 강화: redirect 'follow' 및 Content-Type 명시
-        const res = await fetch(GAS_URL, {
-            method: 'POST',
-            redirect: 'follow', // 구글 스크립트의 리다이렉트 응답을 따라감
-            headers: {
-                "Content-Type": "text/plain;charset=utf-8", // 브라우저 CORS Preflight 방지용 트릭
-            },
-            body: JSON.stringify({ rows: rows })
-        });
-
-        const json = await res.json();
-        
-        if (json.status === 'success') {
-            alert(`처리 완료!\n- 추가됨: ${json.added}명\n- 건너뜀(중복): ${json.skipped}명`);
+            alert(`${count}명의 정보를 브라우저에 적용했습니다.\n(새로고침 시 초기화됩니다)`);
+            
+            // 상태 표시 업데이트
+            document.getElementById('masterStatus').innerText = `● Local Master Data: ${count} entries loaded`;
+            document.getElementById('masterStatus').className = "text-xs text-green-600 font-bold";
+            document.getElementById('masterAlert').classList.add('hidden'); // 경고 배너 숨기기
+            
             toggleModal();
-            fetchData(); 
-        } else {
-            alert("업로드 오류: " + json.message);
-        }
-    } catch (e) {
-        console.error(e); // F12 개발자 도구 콘솔에서 상세 에러 확인 가능
-        alert("네트워크 오류 발생: " + e.message);
-    }
-}
-
-        // ===============================================
-        // [신규 기능] 엑셀 다운로드 (SheetJS 사용)
-        // ===============================================
-        function downloadExcel() {
-            if (!cachedData) return alert("데이터가 없습니다. 먼저 새로고침 해주세요.");
-            
-            const { logs, master, subcon } = cachedData;
-            const wb = XLSX.utils.book_new();
-
-            // 1. 마스터 정보 매핑용 (Passport -> Info)
-            const masterMap = {};
-            master.forEach(row => {
-                if (row[0]) masterMap[row[0]] = { company: row[1], name: row[2], desig: row[3] };
-            });
-
-            // ----------------------------------------------------
-            // 시트 1: 전체_상세_내역 (근로자별 분석 가능)
-            // ----------------------------------------------------
-            const rawSheetData = logs.map(row => {
-                const passport = row[3];
-                const info = masterMap[passport] || { company: "미등록", name: "미등록", desig: "-" };
-                const date = new Date(row[0]);
-                
-                return {
-                    "지급일시": row[0],
-                    "년-월": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`,
-                    "관리자(지급)": row[2],
-                    "여권번호": passport,
-                    "이름": info.name,
-                    "협력사": info.company,
-                    "직책": info.desig,
-                    "코인번호": row[4],
-                    "상위분류": row[5], // Top_KO
-                    "상세사유": row[6]  // Bottom_KO
-                };
-            });
-            const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
-            XLSX.utils.book_append_sheet(wb, wsRaw, "전체_상세_내역");
-
-            // ----------------------------------------------------
-            // 시트 2: 월별_협력사_통계 (피벗 스타일)
-            // ----------------------------------------------------
-            const pivotData = {}; // { "SEC": { "2023-01": 10, "2023-02": 5 } }
-            const allMonths = new Set();
-            
-            rawSheetData.forEach(item => {
-                const comp = item["협력사"] || "미등록";
-                const ym = item["년-월"];
-                if (!pivotData[comp]) pivotData[comp] = {};
-                pivotData[comp][ym] = (pivotData[comp][ym] || 0) + 1;
-                allMonths.add(ym);
-            });
-
-            const sortedMonths = Array.from(allMonths).sort();
-            const monthlySheetData = [];
-            
-            Object.keys(pivotData).forEach(comp => {
-                const rowObj = { "협력사명": comp };
-                let sum = 0;
-                sortedMonths.forEach(ym => {
-                    const val = pivotData[comp][ym] || 0;
-                    rowObj[ym] = val;
-                    sum += val;
-                });
-                rowObj["총합계"] = sum;
-                monthlySheetData.push(rowObj);
-            });
-            const wsMonthly = XLSX.utils.json_to_sheet(monthlySheetData);
-            XLSX.utils.book_append_sheet(wb, wsMonthly, "월별_협력사_통계");
-
-            // ----------------------------------------------------
-            // 시트 3: 협력사_잔액_현황
-            // ----------------------------------------------------
-            const subconStats = {};
-            subcon.forEach(row => {
-                const name = row[2];
-                const type = row[3];
-                const qty = Number(row[4]) || 0;
-                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
-                if (type === 'Give') subconStats[name].give += qty;
-                else if (type === 'Use') subconStats[name].use += qty;
-            });
-
-            const subconSheetData = Object.keys(subconStats).map(name => {
-                const s = subconStats[name];
-                return {
-                    "협력사명": name,
-                    "총 지급(Give)": s.give,
-                    "총 사용(Use)": s.use,
-                    "현재 잔액": s.give - s.use
-                };
-            });
-            const wsSubcon = XLSX.utils.json_to_sheet(subconSheetData);
-            XLSX.utils.book_append_sheet(wb, wsSubcon, "협력사_잔액_현황");
-
-            // ----------------------------------------------------
-            // 파일 생성 및 다운로드
-            // ----------------------------------------------------
-            const now = new Date();
-            const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-            XLSX.writeFile(wb, `SAY_COIN_통계_${dateStr}.xlsx`);
+            processAndRender(cachedData); // 차트 다시 그리기
         }
 
-        // ===============================================
-        // 차트 렌더링 로직 (기존과 동일)
-        // ===============================================
+        // 3. 데이터 병합 및 시각화
         function processAndRender(data) {
-            const { logs, usage, subcon, categories, master } = data;
+            const { logs, usage, subcon, categories } = data; // master는 없음
+            
             const totalIssued = logs.length;
             const totalUsed = usage.length;
             const remaining = totalIssued - totalUsed;
@@ -368,19 +289,24 @@
             const permMap = {};
             categories.forEach(row => { if (row[1]) permMap[row[1]] = row[5]; });
 
-            const companyMap = {};
-            master.forEach(row => { if (row[0]) companyMap[row[0]] = row[1]; });
-
             const reasonGeneral = {}, reasonHSE = {}, companyTrend = {};
+
             logs.forEach(row => {
                 const ts = new Date(row[0]);
-                const passport = row[3];
-                const reason = row[6];
+                const passport = row[3]; // D열
+                const reason = row[6];   // G열
                 
+                // 사유별 집계
                 if (permMap[reason] === 'Master') reasonHSE[reason] = (reasonHSE[reason] || 0) + 1;
                 else reasonGeneral[reason] = (reasonGeneral[reason] || 0) + 1;
 
-                const comp = companyMap[passport] || 'Unregistered';
+                // [핵심] 로컬 마스터 데이터와 매칭
+                let comp = 'Unregistered';
+                if (localMasterMap[passport]) {
+                    comp = localMasterMap[passport].company || 'Unknown';
+                }
+                
+                // 추세 집계
                 const yyyymm = ts.toISOString().slice(0, 7);
                 if (!companyTrend[comp]) companyTrend[comp] = {};
                 companyTrend[comp][yyyymm] = (companyTrend[comp][yyyymm] || 0) + 1;
@@ -393,59 +319,118 @@
             drawSubconTable(subcon);
         }
 
+        // 4. 엑셀 다운로드 (로컬 데이터 병합)
+        function downloadExcel() {
+            if (!cachedData) return alert("데이터 없음");
+            
+            const { logs, subcon } = cachedData;
+            const wb = XLSX.utils.book_new();
+
+            // 시트 1: 상세 내역
+            const rawSheetData = logs.map(row => {
+                const passport = row[3];
+                const info = localMasterMap[passport] || { company: "미등록", name: "미등록", desig: "-" };
+                const date = new Date(row[0]);
+                
+                return {
+                    "지급일시": row[0],
+                    "년-월": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`,
+                    "관리자": row[2],
+                    "여권번호": passport,
+                    "이름": info.name,
+                    "협력사": info.company,
+                    "직책": info.desig,
+                    "코인번호": row[4],
+                    "사유": row[6]
+                };
+            });
+            const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
+            XLSX.utils.book_append_sheet(wb, wsRaw, "전체_상세_내역");
+
+            // 시트 2: 월별 통계
+            const pivotData = {}; 
+            const allMonths = new Set();
+            rawSheetData.forEach(item => {
+                const comp = item["협력사"];
+                const ym = item["년-월"];
+                if (!pivotData[comp]) pivotData[comp] = {};
+                pivotData[comp][ym] = (pivotData[comp][ym] || 0) + 1;
+                allMonths.add(ym);
+            });
+            const sortedMonths = Array.from(allMonths).sort();
+            const monthlySheetData = [];
+            Object.keys(pivotData).forEach(comp => {
+                const rowObj = { "협력사명": comp };
+                let sum = 0;
+                sortedMonths.forEach(ym => {
+                    const val = pivotData[comp][ym] || 0;
+                    rowObj[ym] = val;
+                    sum += val;
+                });
+                rowObj["총합계"] = sum;
+                monthlySheetData.push(rowObj);
+            });
+            const wsMonthly = XLSX.utils.json_to_sheet(monthlySheetData);
+            XLSX.utils.book_append_sheet(wb, wsMonthly, "월별_통계");
+
+            // 시트 3: 협력사 잔액
+            const subconStats = {};
+            subcon.forEach(row => {
+                const name = row[2], type = row[3], qty = Number(row[4]) || 0;
+                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
+                if (type === 'Give') subconStats[name].give += qty;
+                else if (type === 'Use') subconStats[name].use += qty;
+            });
+            const subconSheetData = Object.keys(subconStats).map(name => {
+                const s = subconStats[name];
+                return { "협력사명": name, "지급": s.give, "사용": s.use, "잔액": s.give - s.use };
+            });
+            const wsSubcon = XLSX.utils.json_to_sheet(subconSheetData);
+            XLSX.utils.book_append_sheet(wb, wsSubcon, "협력사_잔액");
+
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+            XLSX.writeFile(wb, `SAY_COIN_통계_${dateStr}.xlsx`);
+        }
+
+        // --- Chart Helpers (동일) ---
         function getTopKeys(obj, limit = 5) {
             return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit);
         }
-
-        function drawBarChart(canvasId, dataObj, color) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            if (charts[canvasId]) charts[canvasId].destroy();
-            const sorted = getTopKeys(dataObj, 10);
-            charts[canvasId] = new Chart(ctx, {
+        function drawBarChart(id, data, color) {
+            const ctx = document.getElementById(id).getContext('2d');
+            if (charts[id]) charts[id].destroy();
+            const sorted = getTopKeys(data, 10);
+            charts[id] = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: sorted.map(i => i[0]),
-                    datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }]
-                },
+                data: { labels: sorted.map(i => i[0]), datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }] },
                 options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
             });
         }
-
-        function drawPieChart(canvasId, used, remaining) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            if (charts[canvasId]) charts[canvasId].destroy();
-            charts[canvasId] = new Chart(ctx, {
+        function drawPieChart(id, used, remaining) {
+            const ctx = document.getElementById(id).getContext('2d');
+            if (charts[id]) charts[id].destroy();
+            charts[id] = new Chart(ctx, {
                 type: 'doughnut',
-                data: {
-                    labels: [t.card_used[currentLang], t.card_remain[currentLang]],
-                    datasets: [{ data: [used, remaining], backgroundColor: ['#EF4444', '#10B981'] }]
-                },
+                data: { labels: ['Redeemed', 'Active'], datasets: [{ data: [used, remaining], backgroundColor: ['#EF4444', '#10B981'] }] },
                 options: { responsive: true, maintainAspectRatio: false }
             });
         }
-
-        function drawLineChart(canvasId, trendData) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            if (charts[canvasId]) charts[canvasId].destroy();
+        function drawLineChart(id, trendData) {
+            const ctx = document.getElementById(id).getContext('2d');
+            if (charts[id]) charts[id].destroy();
             const allMonths = new Set();
             Object.values(trendData).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
             const labels = Array.from(allMonths).sort();
             const datasets = Object.keys(trendData).map((comp, idx) => {
                 const hue = (idx * 137.5) % 360;
-                return {
-                    label: comp,
-                    data: labels.map(m => trendData[comp][m] || 0),
-                    borderColor: `hsl(${hue}, 70%, 50%)`,
-                    backgroundColor: `hsl(${hue}, 70%, 50%)`,
-                    tension: 0.3, pointRadius: 3
-                };
+                return { label: comp, data: labels.map(m => trendData[comp][m] || 0), borderColor: `hsl(${hue}, 70%, 50%)`, backgroundColor: `hsl(${hue}, 70%, 50%)`, tension: 0.3, pointRadius: 3 };
             });
-            charts[canvasId] = new Chart(ctx, {
+            charts[id] = new Chart(ctx, {
                 type: 'line', data: { labels, datasets },
                 options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } }
             });
         }
-
         function drawSubconTable(subconData) {
             const subconStats = {}; 
             subconData.forEach(row => {
