@@ -1,557 +1,890 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.A.Y COIN Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
-        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f3f4f6; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s; }
-        .card:hover { transform: translateY(-2px); }
-        .modal { transition: opacity 0.25s ease; }
-        body.modal-active { overflow-x: hidden; overflow-y: visible !important; }
-        /* Tooltip Custom Style */
-        .tooltip-text { visibility: hidden; width: 300px; background-color: #333; color: #fff; text-align: left; border-radius: 6px; padding: 10px; position: absolute; z-index: 100; top: 100%; left: 50%; margin-left: -150px; opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; font-weight: normal; line-height: 1.4; box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: none; }
-        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
-    </style>
-</head>
-<body class="p-6">
+import streamlit as st
+import pandas as pd
+import time
+import re
+from datetime import datetime, timedelta
+from streamlit_gsheets import GSheetsConnection
+import extra_streamlit_components as stx
 
-    <header class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <div>
-            <div class="flex items-center gap-2">
-                <h1 class="text-3xl font-bold text-gray-800">
-                    <i class="fas fa-chart-line text-indigo-600 mr-2"></i>
-                    <span data-lang="title">S.A.Y COIN Dashboard</span>
-                </h1>
-            </div>
-            <div class="flex items-center gap-2 mt-1">
-                <p class="text-gray-500 text-sm" data-lang="subtitle">서버 저장 없는 실시간 로컬 분석</p>
-                <div class="relative tooltip-container cursor-help">
-                    <i class="fas fa-question-circle text-gray-400 hover:text-indigo-500"></i>
-                    <div class="tooltip-text">
-                        <strong class="block mb-1 text-yellow-400">[보안 아키텍처 설명]</strong>
-                        1. <strong>개인정보 보호:</strong> 이름, 여권번호 등 민감한 마스터 데이터는 회사 보안 정책상 외부 서버(Google Cloud 등)에 저장되지 않습니다.<br>
-                        2. <strong>로컬 처리:</strong> 대신 사용자의 브라우저 내부 저장소(IndexedDB)에 암호화 없이 안전하게 격리되어 저장됩니다.<br>
-                        3. <strong>작동 원리:</strong> 대시보드가 실행될 때 서버의 '익명 로그'와 내 PC의 '실명 정보'가 브라우저 메모리 상에서 실시간으로 결합되어 차트를 생성합니다.
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="flex gap-2 flex-wrap justify-end">
-            <button onclick="toggleLanguage()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow font-bold">
-                <i class="fas fa-globe mr-2"></i><span id="langBtnText">EN</span>
-            </button>
-            <button onclick="fetchData()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-sync-alt mr-2"></i><span data-lang="refresh">데이터 갱신</span>
-            </button>
-            <button onclick="toggleModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-file-import mr-2"></i><span data-lang="btn_upload">마스터정보 입력</span>
-            </button>
-            <button onclick="downloadExcel()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-download mr-2"></i><span data-lang="btn_download">Excel Download (Eng)</span>
-            </button>
-        </div>
-    </header>
+# --- 설정: 페이지 기본 세팅 ---
+st.set_page_config(page_title="FGIP4 S.A.Y COIN", page_icon="🪙")
 
-    <div id="loading" class="text-center py-20">
-        <i class="fas fa-circle-notch fa-spin text-4xl text-blue-500"></i>
-        <p class="mt-4 text-gray-600" data-lang="loading">데이터 불러오는 중...</p>
-    </div>
+# --- 다국어 텍스트 사전 ---
+LANG = {
+    "KO": {
+        "title": "FGIP4 S.A.Y COIN",
+        "login_title": "🏗️ FGIP4 로그인",
+        "id_label": "아이디",
+        "pw_label": "비밀번호",
+        "login_btn": "로그인",
+        "login_fail": "아이디/비번 확인 또는 권한 문의 필요.",
+        "logout_btn": "로그아웃",
+        "welcome": "접속자: {} 님 ({})",
+        "tab1": "💰 코인 지급",
+        "tab2": "📋 지급 기록",
+        "tab3": "🏪 코인 사용(상품교환)",
+        "tab4": "🤝 협력사 관리",
+        "header_reward": "근로자 안전 행동 보상",
+        "passport_label": "HSE Passport No", 
+        "passport_check_label": "HSE Passport No (Confirm)",
+        "coin_input_guide": "**ℹ️ {}개의 코인 번호를 입력하세요.** (4자리 숫자)",
+        "coin_input_label": "코인 일련번호 입력 ({}/{}번째)",
+        "cat_top": "상위 분류",
+        "cat_bot": "하위 분류",
+        "select_default": "- 선택하세요 -",
+        "note_label": "비고 (선택사항)",
+        "submit_btn": "지급 등록",
+        "warning_fill": "모든 필수 항목을 입력해주세요.",
+        "warning_pass_mismatch": "입력한 두 개의 패스포트 번호가 일치하지 않습니다.",
+        "warning_coin_self_dup": "입력한 코인 번호 중 중복된 번호가 있습니다.",
+        "success_msg": "처리되었습니다!",
+        "fail_msg": "처리에 실패했습니다.",
+        "duplicate_msg": "이미 지급된 코인 번호가 포함되어 있습니다: {}",
+        "ok_btn": "OK",
+        "retry_btn": "재시도",
+        "refresh_btn": "내역 새로고침",
+        "no_data": "데이터가 없습니다.",
+        "header_history": "나의 지급 내역",
+        "redeem_search_label": "근로자 조회 (HSE Passport No)",
+        "redeem_coin_search_label": "코인 조회 (일련번호 4자리)",
+        "redeem_search_mode": "검색 방식 선택",
+        "mode_worker": "근로자 검색 (보유 코인 목록)",
+        "mode_coin": "코인 번호 검색 (단건 조회)",
+        "coin_owner_info": "🔍 소유자 정보: Passport No **{}**",
+        "coin_not_found": "⚠️ 해당 코인을 찾을 수 없거나 이미 사용되었습니다.",
+        "redeem_search_btn": "조회",
+        "redeem_info": "보유 코인: {} 개",
+        "redeem_reason_label": "사용 사유",
+        "redeem_btn": "선택한 코인 사용 처리",
+        "redeem_single_btn": "해당 코인 사용 처리",
+        "redeem_warning": "사용할 코인을 선택해주세요.",
+        "redeem_reason_warning": "사용 사유를 입력해주세요.",
+        "table_cols": ["시간", "관리자ID", "이름", "패스포트", "코인번호", "상위분류", "하위분류", "비고"],
+        "redeem_table_title": "▼ 코인 선택 (체크박스)",
+        "col_select": "선택",
+        "col_coin_no": "코인 번호",
+        "col_timestamp": "지급 일시",
+        "col_reason": "사유",
+        "col_manager": "지급자",
+        "api_wait": "통신량이 많아 대기 중... ({}/{})",
+        "subcon_select_label": "협력사(Subcontractor) 선택",
+        "subcon_balance_fmt": "💰 현재 보유 수량: **{}** 개",
+        "subcon_action_type": "작업 유형",
+        "action_give": "지급 (Provision)",
+        "action_use": "사용 (Redeem)",
+        "subcon_qty_label": "수량 (개)",
+        "subcon_reason_label": "사유 (필수)",
+        "subcon_btn_give": "✅ 지급 처리",
+        "subcon_btn_use": "🛑 사용 처리",
+        "subcon_warn_qty": "수량은 1 이상의 정수여야 합니다.",
+        "subcon_warn_reason": "사유를 입력해주세요.",
+        "subcon_warn_balance": "보유 수량이 부족합니다.",
+        "subcon_success_give": "협력사 지급 완료!",
+        "subcon_success_use": "협력사 사용 완료!",
+        "shortcut_caption": "바로가기 아이콘 만들기",
+        "shortcut_title": "📲 홈 화면에 추가하는 법",
+        "ios_guide": """
+        **1.** Safari 브라우저 하단 **[공유]** 버튼(📤) 클릭
+        \n**2.** 메뉴를 올려서 **[홈 화면에 추가]** 선택
+        \n**3.** 우측 상단 **[추가]** 클릭
+        """,
+        "android_guide": """
+        **1.** Chrome 브라우저 우측 상단 **[점 3개]** 메뉴 클릭
+        \n**2.** **[홈 화면에 추가]** 또는 **[앱 설치]** 선택
+        \n**3.** **[추가]** 버튼 클릭
+        """
+    },
+    "EN": {
+        "title": "FGIP4 S.A.Y COIN",
+        "login_title": "🏗️ FGIP4 Login",
+        "id_label": "ID",
+        "pw_label": "Password",
+        "login_btn": "Login",
+        "login_fail": "Check ID/PW or Permission.",
+        "logout_btn": "Logout",
+        "welcome": "User: {} ({})",
+        "tab1": "💰 Reward Coin",
+        "tab2": "📋 History",
+        "tab3": "🏪 Redeem Coin",
+        "tab4": "🤝 Subcontractor",
+        "header_reward": "Safety Action Reward",
+        "passport_label": "HSE Passport No",
+        "passport_check_label": "HSE Passport No (Confirm)",
+        "coin_input_guide": "**ℹ️ Enter {} coin serial numbers.** (4 digits)",
+        "coin_input_label": "Enter Coin Serial ({}/{})",
+        "cat_top": "Category (Top)",
+        "cat_bot": "Category (Bottom)",
+        "select_default": "- Select -",
+        "note_label": "Note (Optional)",
+        "submit_btn": "Submit",
+        "warning_fill": "Please fill in all required fields.",
+        "warning_pass_mismatch": "Passport numbers do not match.",
+        "warning_coin_self_dup": "Duplicate coin numbers entered.",
+        "success_msg": "Success!",
+        "fail_msg": "Failed.",
+        "duplicate_msg": "Coin already issued: {}",
+        "ok_btn": "OK",
+        "retry_btn": "Retry",
+        "refresh_btn": "Refresh",
+        "no_data": "No data found.",
+        "header_history": "My History",
+        "redeem_search_label": "Search Worker (HSE Passport No)",
+        "redeem_coin_search_label": "Search Coin (4-digit Serial)",
+        "redeem_search_mode": "Search Mode",
+        "mode_worker": "By Worker (List Coins)",
+        "mode_coin": "By Coin No (Single)",
+        "coin_owner_info": "🔍 Owner: Passport No **{}**",
+        "coin_not_found": "⚠️ Coin not found or already used.",
+        "redeem_search_btn": "Search",
+        "redeem_info": "Owned Coins: {}",
+        "redeem_reason_label": "Redeem Reason",
+        "redeem_btn": "Redeem Selected Coins",
+        "redeem_single_btn": "Redeem This Coin",
+        "redeem_warning": "Select coins to redeem.",
+        "redeem_reason_warning": "Please enter a reason.",
+        "table_cols": ["Time", "ManagerID", "Name", "Passport", "CoinNo", "Top", "Bottom", "Note"],
+        "redeem_table_title": "▼ Select Coins (Checkbox)",
+        "col_select": "Select",
+        "col_coin_no": "Coin No",
+        "col_timestamp": "Date",
+        "col_reason": "Reason",
+        "col_manager": "Manager",
+        "api_wait": "High traffic, retrying... ({}/{})",
+        "subcon_select_label": "Select Subcontractor",
+        "subcon_balance_fmt": "💰 Current Balance: **{}**",
+        "subcon_action_type": "Action Type",
+        "action_give": "Give (Provision)",
+        "action_use": "Use (Redeem)",
+        "subcon_qty_label": "Quantity",
+        "subcon_reason_label": "Reason (Mandatory)",
+        "subcon_btn_give": "✅ Submit (Give)",
+        "subcon_btn_use": "🛑 Submit (Use)",
+        "subcon_warn_qty": "Quantity must be > 0.",
+        "subcon_warn_reason": "Please enter a reason.",
+        "subcon_warn_balance": "Insufficient balance.",
+        "subcon_success_give": "Provision Success!",
+        "subcon_success_use": "Redemption Success!",
+        "shortcut_caption": "Create App Shortcut",
+        "shortcut_title": "📲 Add to Home Screen",
+        "ios_guide": """
+        **1.** Tap **[Share]** button (📤) in Safari
+        \n**2.** Scroll down & select **[Add to Home Screen]**
+        \n**3.** Tap **[Add]** (Top right)
+        """,
+        "android_guide": """
+        **1.** Tap **[Menu]** (3 dots) in Chrome (Top right)
+        \n**2.** Select **[Add to Home Screen]** or **[Install App]**
+        \n**3.** Tap **[Add]**
+        """
+    }
+}
 
-    <div id="dashboard" class="hidden space-y-8">
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+def get_text(key, *args):
+    lang_code = st.session_state.get('language', 'EN') # [수정] 기본값 EN
+    text = LANG[lang_code].get(key, key)
+    if args:
+        return text.format(*args)
+    return text
+
+# --- 재시도 로직 ---
+def read_data_with_retry(worksheet, ttl=0, max_retries=5):
+    retries = 0
+    while retries < max_retries:
+        try:
+            return conn.read(worksheet=worksheet, ttl=ttl)
+        except Exception as e:
+            if "429" in str(e) or "Quota exceeded" in str(e):
+                retries += 1
+                wait_time = 2 ** retries
+                st.toast(get_text("api_wait", retries, max_retries), icon="⏳")
+                time.sleep(wait_time)
+            else:
+                raise e
+    raise Exception("API Quota Exceeded. Please try again later.")
+
+def update_data_with_retry(worksheet, data, max_retries=5):
+    retries = 0
+    while retries < max_retries:
+        try:
+            conn.update(worksheet=worksheet, data=data)
+            return True
+        except Exception as e:
+            if "429" in str(e) or "Quota exceeded" in str(e):
+                retries += 1
+                wait_time = 2 ** retries
+                st.toast(get_text("api_wait", retries, max_retries), icon="⏳")
+                time.sleep(wait_time)
+            else:
+                raise e
+    return False
+
+# --- 데이터 캐싱 함수 (API 호출 최소화) ---
+def get_cached_logs(force_refresh=False):
+    if 'cached_logs' not in st.session_state or force_refresh:
+        st.session_state['cached_logs'] = read_data_with_retry(worksheet="Logs", ttl=0)
+    return st.session_state['cached_logs']
+
+def get_cached_subcon_logs(force_refresh=False):
+    if 'cached_subcon_logs' not in st.session_state or force_refresh:
+        try:
+            st.session_state['cached_subcon_logs'] = read_data_with_retry(worksheet="Subcon_Logs", ttl=0)
+        except:
+            st.session_state['cached_subcon_logs'] = pd.DataFrame()
+    return st.session_state['cached_subcon_logs']
+
+# --- 데이터 성형 함수 ---
+def clean_numeric_str(val, width=0):
+    s = str(val).strip()
+    if s == "nan" or s == "None": return ""
+    s = s.replace(".0", "") 
+    is_used = "*" in s
+    clean_s = s.replace("*", "") 
+    if clean_s.isdigit() and width > 0:
+        clean_s = clean_s.zfill(width)
+    return clean_s + ("*" if is_used else "")
+
+# --- 카테고리 데이터 로드 ---
+@st.cache_data(ttl=600)
+def load_category_data():
+    try:
+        df = read_data_with_retry(worksheet="Categories", ttl=600)
+        if 'Quantity' not in df.columns:
+            df['Quantity'] = 1
+        df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(1).astype(int)
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+# --- 로그인 함수 ---
+@st.cache_data(ttl=600) 
+def load_users_data():
+    return read_data_with_retry(worksheet="Users", ttl=600)
+
+def login(username, password):
+    try:
+        users_df = load_users_data()
+        users_df['ID'] = users_df['ID'].apply(lambda x: clean_numeric_str(x))
+        users_df['PW'] = users_df['PW'].apply(lambda x: clean_numeric_str(x))
         
-        <div id="cacheStatusBanner" class="hidden bg-green-50 border-l-4 border-green-500 p-4 mb-4 flex justify-between items-center">
-            <div class="flex items-center">
-                <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                <div>
-                    <p class="text-sm text-green-700 font-bold">로컬 데이터 로드 완료</p>
-                    <p class="text-xs text-green-600" id="cacheCountText">0 entries loaded from local cache.</p>
-                </div>
-            </div>
-        </div>
+        if 'Role' not in users_df.columns:
+            users_df['Role'] = ""
+        else:
+            users_df['Role'] = users_df['Role'].fillna("").astype(str)
 
-        <div id="cacheWarningBanner" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 flex justify-between items-center">
-             <div class="flex items-center">
-                <i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i>
-                <div>
-                    <p class="text-sm text-yellow-700 font-bold" data-lang="warn_title">마스터 정보 없음</p>
-                    <p class="text-xs text-yellow-600" data-lang="warn_desc">그래프에 '미등록(Unregistered)'이 표시됩니다. 상단 [마스터정보 입력]을 눌러 데이터를 저장하세요.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div class="card p-6 border-l-4 border-blue-500">
-                <p class="text-gray-500 text-sm" data-lang="card_issued">총 지급 코인</p>
-                <h2 class="text-3xl font-bold text-gray-800" id="totalIssued">-</h2>
-            </div>
-            <div class="card p-6 border-l-4 border-red-500">
-                <p class="text-gray-500 text-sm" data-lang="card_used">총 사용(회수) 코인</p>
-                <h2 class="text-3xl font-bold text-gray-800" id="totalUsed">-</h2>
-            </div>
-            <div class="card p-6 border-l-4 border-green-500">
-                <p class="text-gray-500 text-sm" data-lang="card_remain">시중 유통량</p>
-                <h2 class="text-3xl font-bold text-gray-800" id="currentCirculation">-</h2>
-            </div>
-            <div class="card p-6 border-l-4 border-purple-500">
-                <p class="text-gray-500 text-sm" data-lang="card_rate">코인 회수율</p>
-                <h2 class="text-3xl font-bold text-gray-800" id="returnRate">-</h2>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_general">일반 지급 사유</h3>
-                <canvas id="chartGeneral"></canvas>
-            </div>
-            <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_hse">HSE 지급 사유</h3>
-                <canvas id="chartHSE"></canvas>
-            </div>
-             <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_status">발행 vs 회수 비율</h3>
-                <div class="h-64 flex justify-center">
-                    <canvas id="chartRatio"></canvas>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_trend_worker">협력사별 코인 지급 추세(근로자)</h3>
-                <div class="h-80">
-                    <canvas id="chartTrend"></canvas>
-                </div>
-            </div>
-            <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_cumulative">협력사별 지급 누적량 (Cumulative)</h3>
-                <div class="h-80">
-                    <canvas id="chartCumulative"></canvas>
-                </div>
-            </div>
-        </div>
+        user = users_df[(users_df['ID'] == str(username).strip()) & (users_df['PW'] == str(password).strip())]
         
-        <div class="card p-6">
-            <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="table_title">협력사 코인 지급 추세(업체)</h3>
-            <div class="overflow-x-auto max-h-96">
-                <table class="min-w-full text-sm text-left text-gray-500">
-                    <thead class="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
-                        <tr>
-                            <th class="px-6 py-3" data-lang="th_name">협력사명</th>
-                            <th class="px-6 py-3 text-right" data-lang="th_give">총 지급 (Give)</th>
-                            <th class="px-6 py-3 text-right" data-lang="th_use">총 사용 (Use)</th>
-                            <th class="px-6 py-3 text-right font-bold" data-lang="th_balance">현재 잔액</th>
-                        </tr>
-                    </thead>
-                    <tbody id="subconTableBody"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+        if not user.empty:
+            return user.iloc[0]['Name'], user.iloc[0]['Role']
+        return None, None
+    except Exception as e:
+        return None, None
 
-    <div id="uploadModal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
-        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50" onclick="toggleModal()"></div>
-        <div class="modal-container bg-white w-11/12 md:max-w-3xl mx-auto rounded shadow-lg z-50 overflow-y-auto">
-            <div class="modal-content py-4 text-left px-6">
-                <div class="flex justify-between items-center pb-3">
-                    <p class="text-2xl font-bold" data-lang="modal_title">마스터 정보 로컬 저장</p>
-                    <div class="cursor-pointer z-50" onclick="toggleModal()">
-                        <i class="fas fa-times"></i>
-                    </div>
-                </div>
-                <div class="bg-blue-50 p-3 rounded mb-3 text-sm text-blue-800">
-                    <i class="fas fa-hdd mr-2"></i>
-                    <span data-lang="modal_security">데이터는 서버로 전송되지 않고 내 PC(IndexedDB)에만 저장됩니다.</span>
-                </div>
-                <p class="text-sm text-gray-500 mb-2" data-lang="modal_desc">
-                    엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.
-                </p>
-                <textarea id="pasteArea" class="w-full h-64 p-2 border rounded bg-gray-50 text-xs font-mono" placeholder="A1234567 | SEC | Hong Gil Dong | Manager&#10;..."></textarea>
-                <div class="flex justify-end pt-4 gap-2">
-                    <button onclick="toggleModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" data-lang="btn_close">닫기</button>
-                    <button onclick="saveToIndexedDB()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700" data-lang="btn_save">저장하기</button>
-                </div>
-            </div>
-        </div>
-    </div>
+def clear_inputs():
+    st.session_state['k_passport'] = ""
+    st.session_state['k_pass_check'] = ""
+    st.session_state['k_note'] = ""
+    keys_to_remove = [k for k in st.session_state.keys() if k.startswith('k_coin_dynamic_')]
+    for k in keys_to_remove:
+        del st.session_state[k]
+        
+    default_val = get_text("select_default")
+    st.session_state['k_top'] = default_val
+    st.session_state['k_bot'] = default_val
+    
+    st.session_state['redeem_reason_input'] = ""
+    st.session_state['redeem_search_key'] = ""
+    st.session_state['redeem_coin_search_key'] = ""
 
-    <script>
-        // ==========================================
-        // [설정] 배포된 GAS URL
-        // ==========================================
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbxVF66kP7qUr092RVdsXctYztfGVtszSuWJmLKa9Ak6-FTR47jgoLif9EYbC-xaFYGo/exec"; 
+    st.session_state['subcon_reason_input'] = ""
+    st.session_state['subcon_qty_input'] = 1
 
-        // State
-        let currentLang = 'ko';
-        let cachedData = null;      
-        let localMasterMap = {};    
-        let charts = {};
+@st.dialog("알림")
+def show_result_popup(is_success, error_msg=None, clear_on_ok=False):
+    if is_success:
+        st.success(get_text("success_msg"))
+        if st.button(get_text("ok_btn")):
+            if clear_on_ok:
+                clear_inputs()
+            st.rerun()
+    else:
+        st.error(f"{get_text('fail_msg')}\n({error_msg})")
+        if st.button(get_text("retry_btn")):
+            st.rerun()
 
-        // --- IndexedDB Class ---
-        class MasterDB {
-            constructor() { this.dbName = 'SayCoinMasterDB'; this.storeName = 'workers'; this.db = null; }
-            async open() {
-                return new Promise((resolve, reject) => {
-                    const request = indexedDB.open(this.dbName, 1);
-                    request.onupgradeneeded = (e) => {
-                        const db = e.target.result;
-                        if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName, { keyPath: 'passport' });
-                    };
-                    request.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
-                    request.onerror = (e) => reject(e);
-                });
-            }
-            async saveBulk(dataArray) {
-                if (!this.db) await this.open();
-                return new Promise((resolve, reject) => {
-                    const tx = this.db.transaction([this.storeName], 'readwrite');
-                    const store = tx.objectStore(this.storeName);
-                    store.clear();
-                    dataArray.forEach(item => store.put(item));
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = (e) => reject(e);
-                });
-            }
-            async getAll() {
-                if (!this.db) await this.open();
-                return new Promise((resolve, reject) => {
-                    const tx = this.db.transaction([this.storeName], 'readonly');
-                    const req = tx.objectStore(this.storeName).getAll();
-                    req.onsuccess = () => resolve(req.result);
-                    req.onerror = (e) => reject(e);
-                });
-            }
-        }
-        const dbHelper = new MasterDB();
+# --- [중요] 쿠키 매니저 초기화 함수 ---
+def get_manager():
+    return stx.CookieManager(key="auth_cookie_manager")
 
-        // --- Translations ---
-        const t = {
-            title: { ko: "S.A.Y COIN Dashboard", en: "S.A.Y COIN Dashboard" },
-            subtitle: { ko: "서버 저장 없는 실시간 로컬 분석", en: "Secure Client-side Analytics" },
-            refresh: { ko: "데이터 갱신", en: "Refresh" },
-            btn_upload: { ko: "마스터정보 입력", en: "Import Master Data" },
-            btn_download: { ko: "Excel Download (Eng)", en: "Excel Download (Eng)" },
-            loading: { ko: "데이터 불러오는 중...", en: "Loading..." },
-            warn_title: { ko: "마스터 정보 없음", en: "No Master Data" },
-            warn_desc: { ko: "그래프에 '미등록(Unregistered)'이 표시됩니다. 상단 [마스터정보 입력]을 눌러 데이터를 저장하세요.", en: "Charts show 'Unregistered'. Please import data." },
-            modal_title: { ko: "마스터 정보 로컬 저장", en: "Save Master Data Locally" },
-            modal_security: { ko: "데이터는 서버로 전송되지 않고 내 PC(IndexedDB)에만 저장됩니다.", en: "Data is stored locally on your PC (IndexedDB) only." },
-            modal_desc: { ko: "엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.", en: "Paste [Passport, Company, Name, Designation] columns here." },
-            btn_close: { ko: "닫기", en: "Close" },
-            btn_save: { ko: "저장하기", en: "Save Locally" },
+def main():
+    # 1. 쿠키 매니저 로드
+    cookie_manager = get_manager()
+    
+    # 2. 세션 상태 초기화
+    if 'logged_in' not in st.session_state:
+        st.session_state['logged_in'] = False
+        st.session_state['user_role'] = ""
+    
+    # [수정] 언어 초기화 및 쿠키 확인 로직
+    if 'language' not in st.session_state:
+        # 1. 쿠키에서 언어 설정 확인
+        lang_cookie = cookie_manager.get("fgip4_lang")
+        if lang_cookie in ["KO", "EN"]:
+            st.session_state['language'] = lang_cookie
+        else:
+            # 2. 쿠키 없으면 기본값 EN
+            st.session_state['language'] = "EN"
+
+    # 3. [자동 로그인 로직] 
+    if st.session_state.get('logout_pressed', False):
+        st.session_state['logout_pressed'] = False
+    else:
+        cookie_val = cookie_manager.get("fgip4_auth")
+        if not st.session_state['logged_in'] and cookie_val and str(cookie_val).strip() != "":
+            try:
+                if ":" in cookie_val:
+                    c_id, c_pw = cookie_val.split(":", 1)
+                    user_name, user_role = login(c_id, c_pw)
+                    if user_name:
+                        st.session_state['logged_in'] = True
+                        st.session_state['user_name'] = user_name
+                        st.session_state['user_id'] = c_id
+                        st.session_state['user_role'] = user_role
+                        st.toast(f"Welcome back: {user_name}", icon="👋")
+                        time.sleep(0.5)
+                        st.rerun()
+            except:
+                pass
+
+    # --- 사이드바 ---
+    with st.sidebar:
+        st.header("Settings")
+        
+        # [수정] 언어 선택 로직 (쿠키 저장 포함)
+        lang_options = ["English", "Korean"]
+        # 현재 상태에 따라 인덱스 설정
+        current_idx = 0 if st.session_state['language'] == "EN" else 1
+        
+        lang_choice = st.radio("Language", lang_options, index=current_idx)
+        
+        new_lang = "EN" if lang_choice == "English" else "KO"
+        
+        # 언어가 변경되었을 때만 실행
+        if st.session_state['language'] != new_lang:
+            st.session_state['language'] = new_lang
+            # 쿠키에 언어 설정 저장 (30000일 유효)
+            cookie_manager.set("fgip4_lang", new_lang, expires_at=datetime.now() + timedelta(days=30000))
+            time.sleep(0.2)
+            st.rerun()
+        
+        if st.session_state['logged_in']:
+            st.divider()
+            role_display = "Admin" if st.session_state['user_role'] == "Master" else "User"
+            st.info(get_text("welcome", st.session_state['user_name'], role_display))
             
-            card_issued: { ko: "총 지급 코인", en: "Total Issued" },
-            card_used: { ko: "총 사용(회수) 코인", en: "Total Redeemed" },
-            card_remain: { ko: "시중 유통량", en: "Circulation" },
-            card_rate: { ko: "코인 회수율", en: "Redemption Rate" },
-            
-            chart_general: { ko: "일반 지급 사유", en: "Issued by Reason (General)" },
-            chart_hse: { ko: "HSE 지급 사유", en: "Issued by Reason (HSE)" },
-            chart_status: { ko: "발행 vs 회수 비율", en: "Issued vs Redeemed" },
-            chart_trend_worker: { ko: "협력사별 코인 지급 추세(근로자)", en: "Monthly Issuance by Company (Worker)" },
-            chart_cumulative: { ko: "협력사별 지급 누적량 (Cumulative)", en: "Cumulative Issuance by Company" },
-            
-            table_title: { ko: "협력사 코인 지급 추세(업체)", en: "Company Coin Balance (Direct)" },
-            th_name: { ko: "협력사명", en: "Company" },
-            th_give: { ko: "총 지급 (Give)", en: "Given" },
-            th_use: { ko: "총 사용 (Use)", en: "Used" },
-            th_balance: { ko: "현재 잔액", en: "Balance" }
-        };
-
-        window.onload = async function() { 
-            applyLanguage(); 
-            await loadLocalMasterData();
-            await fetchData(); 
-        };
-
-        function toggleLanguage() {
-            currentLang = currentLang === 'ko' ? 'en' : 'ko';
-            document.getElementById('langBtnText').innerText = currentLang === 'ko' ? 'EN' : 'KO';
-            applyLanguage();
-            if (cachedData) processAndRender(cachedData);
-        }
-
-        function applyLanguage() {
-            document.querySelectorAll('[data-lang]').forEach(el => {
-                const key = el.getAttribute('data-lang');
-                if (t[key]) el.innerHTML = t[key][currentLang];
-            });
-        }
-
-        function toggleModal() {
-            const modal = document.getElementById('uploadModal');
-            modal.classList.toggle('opacity-0');
-            modal.classList.toggle('pointer-events-none');
-            document.body.classList.toggle('modal-active');
-        }
-
-        async function loadLocalMasterData() {
-            try {
-                const results = await dbHelper.getAll();
-                localMasterMap = {};
-                if (results && results.length > 0) {
-                    results.forEach(item => { localMasterMap[item.passport] = { company: item.company, name: item.name, desig: item.desig }; });
-                    document.getElementById('cacheStatusBanner').classList.remove('hidden');
-                    document.getElementById('cacheWarningBanner').classList.add('hidden');
-                    document.getElementById('cacheCountText').innerText = `${results.length.toLocaleString()} entries loaded from local cache.`;
-                } else {
-                    document.getElementById('cacheStatusBanner').classList.add('hidden');
-                    document.getElementById('cacheWarningBanner').classList.remove('hidden');
-                }
-            } catch (e) { console.error("DB Error", e); }
-        }
-
-        async function saveToIndexedDB() {
-            const rawText = document.getElementById('pasteArea').value.trim();
-            if (!rawText) return alert("데이터를 입력하세요.");
-            const rows = rawText.split('\n').map(line => line.split('\t').map(c => c.trim()));
-            if (rows.length === 0 || rows[0].length < 4) return alert("최소 4개 열이 필요합니다.");
-            
-            const dataToSave = [];
-            rows.forEach(r => { if(r[0]) dataToSave.push({ passport: r[0], company: r[1], name: r[2], desig: r[3] }); });
-
-            if (!confirm(`${dataToSave.length}명의 데이터를 저장하시겠습니까?`)) return;
-            try {
-                await dbHelper.saveBulk(dataToSave);
-                alert("저장 완료!");
-                toggleModal();
-                await loadLocalMasterData();
-                if (cachedData) processAndRender(cachedData);
-            } catch (e) { alert("저장 실패: " + e); }
-        }
-
-        async function fetchData() {
-            if (GAS_URL.includes("YOUR_GAS")) return alert("GAS URL을 설정하세요.");
-            document.getElementById('loading').classList.remove('hidden');
-            document.getElementById('dashboard').classList.add('hidden');
-            try {
-                const res = await fetch(GAS_URL);
-                const json = await res.json();
-                if (json.status === 'success') {
-                    cachedData = json.data;
-                    processAndRender(cachedData);
-                }
-            } catch (e) { console.error(e); alert("데이터 로드 실패"); } 
-            finally {
-                document.getElementById('loading').classList.add('hidden');
-                document.getElementById('dashboard').classList.remove('hidden');
-            }
-        }
-
-        function processAndRender(data) {
-            const { logs, usage, subcon, categories } = data;
-            
-            // KPI
-            const totalIssued = logs.length;
-            const totalUsed = usage.length;
-            const remaining = totalIssued - totalUsed;
-            const rate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + "%" : "0%";
-
-            document.getElementById('totalIssued').innerText = totalIssued.toLocaleString();
-            document.getElementById('totalUsed').innerText = totalUsed.toLocaleString();
-            document.getElementById('currentCirculation').innerText = remaining.toLocaleString();
-            document.getElementById('returnRate').innerText = rate;
-
-            // Mapping & Aggregation
-            const permMap = {};
-            categories.forEach(row => { if (row[1]) permMap[row[1]] = row[5]; });
-
-            const reasonGeneral = {}, reasonHSE = {}, companyTrend = {};
-
-            logs.forEach(row => {
-                const ts = new Date(row[0]);
-                const passport = row[3];
-                const reason = row[6];
+            # [로그아웃 버튼]
+            if st.button(get_text("logout_btn")):
+                cookie_manager.set("fgip4_auth", "", expires_at=datetime.now())
                 
-                if (permMap[reason] === 'Master') reasonHSE[reason] = (reasonHSE[reason] || 0) + 1;
-                else reasonGeneral[reason] = (reasonGeneral[reason] || 0) + 1;
-
-                let comp = 'Unregistered';
-                if (localMasterMap[passport]) comp = localMasterMap[passport].company || 'Unknown';
+                st.session_state['logged_in'] = False
+                st.session_state['user_role'] = ""
+                st.session_state['user_name'] = ""
+                st.session_state['user_id'] = ""
                 
-                const yyyymm = ts.toISOString().slice(0, 7);
-                if (!companyTrend[comp]) companyTrend[comp] = {};
-                companyTrend[comp][yyyymm] = (companyTrend[comp][yyyymm] || 0) + 1;
-            });
+                st.session_state['logout_pressed'] = True
+                
+                st.toast("Logged out.", icon="👋")
+                time.sleep(1) 
+                
+                st.rerun()
 
-            // Calculate Cumulative Data
-            const allMonths = new Set();
-            Object.values(companyTrend).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
-            const sortedMonths = Array.from(allMonths).sort();
+        # [홈 화면 추가 가이드]
+        st.divider()
+        st.caption(get_text("shortcut_caption"))
+        
+        with st.expander(get_text("shortcut_title")):
+            tab_ios, tab_android = st.tabs(["iPhone", "Android"])
             
-            const cumulativeTrend = {};
-            Object.keys(companyTrend).forEach(comp => {
-                cumulativeTrend[comp] = {};
-                let sum = 0;
-                sortedMonths.forEach(ym => {
-                    const val = companyTrend[comp][ym] || 0;
-                    sum += val;
-                    cumulativeTrend[comp][ym] = sum;
-                });
-            });
+            with tab_ios:
+                st.markdown(get_text("ios_guide"), unsafe_allow_html=True)
+                
+            with tab_android:
+                st.markdown(get_text("android_guide"))
 
-            // Render Charts
-            drawBarChart('chartGeneral', reasonGeneral, 'rgba(59, 130, 246, 0.7)');
-            drawBarChart('chartHSE', reasonHSE, 'rgba(239, 68, 68, 0.7)');
-            drawPieChart('chartRatio', totalUsed, remaining);
-            drawLineChart('chartTrend', companyTrend, false); // Monthly
-            drawLineChart('chartCumulative', cumulativeTrend, true); // Cumulative (Fill)
-            drawSubconTable(subcon);
-        }
+    # --- 로그인 화면 ---
+    if not st.session_state['logged_in']:
+        st.title(get_text("login_title"))
+        with st.form("login_form"):
+            username = st.text_input(get_text("id_label"))
+            password = st.text_input(get_text("pw_label"), type="password")
+            submit = st.form_submit_button(get_text("login_btn"))
+            
+            if submit:
+                load_users_data.clear()
+                user_name, user_role = login(username, password)
+                if user_name:
+                    st.session_state['logged_in'] = True
+                    st.session_state['user_name'] = user_name
+                    st.session_state['user_id'] = username
+                    st.session_state['user_role'] = user_role
+                    
+                    cookie_val = f"{username}:{password}"
+                    cookie_manager.set("fgip4_auth", cookie_val, expires_at=datetime.now() + timedelta(days=7))
+                    
+                    st.toast("Login Success!", icon="✅")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error(get_text("login_fail"))
 
-        // ===============================================
-        // [수정된 기능] 엑셀 다운로드 (English & 4 Reasons)
-        // ===============================================
-        function downloadExcel() {
-            if (!cachedData) return alert("No Data");
-            const { logs, subcon } = cachedData;
-            const wb = XLSX.utils.book_new();
+    # --- 메인 앱 화면 ---
+    else:
+        st.title(get_text("title"))
+        tabs_list = [get_text("tab1"), get_text("tab2")]
+        if st.session_state['user_role'] == "Master":
+            tabs_list.append(get_text("tab3"))
+            tabs_list.append(get_text("tab4"))
+        tabs = st.tabs(tabs_list)
 
-            // 1. Raw Data (English Headers) with ALL 4 Reason Columns
-            const rawSheetData = logs.map(row => {
-                const passport = row[3];
-                const info = localMasterMap[passport] || { company: "Unregistered", name: "Unregistered", desig: "-" };
-                const date = new Date(row[0]);
-                return {
-                    "Timestamp": row[0],
-                    "Month": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`,
-                    "Manager": row[2],
-                    "Passport_No": passport,
-                    "Name": info.name,
-                    "Company": info.company,
-                    "Designation": info.desig,
-                    "Coin_No": row[4],
-                    "Top_Category(KO)": row[5],   // F열
-                    "Bottom_Category(KO)": row[6], // G열
-                    "Top_Category(EN)": row[7],    // H열
-                    "Bottom_Category(EN)": row[8]  // I열
-                };
-            });
-            const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
-            XLSX.utils.book_append_sheet(wb, wsRaw, "Raw_Log_Data");
+        # [TAB 1] 코인 지급
+        with tabs[0]:
+            st.subheader(get_text("header_reward"))
+            
+            cat_df = load_category_data()
+            if cat_df.empty:
+                st.error("Categories 시트를 불러올 수 없습니다.")
+                st.stop()
 
-            // 2. Helper for Pivot
-            const allMonths = new Set();
-            rawSheetData.forEach(i => allMonths.add(i.Month));
-            const sortedMonths = Array.from(allMonths).sort();
+            # --- 권한 기반 카테고리 필터링 ---
+            cat_df.columns = cat_df.columns.str.strip()
+            if st.session_state['user_role'] != "Master":
+                if 'Permission' in cat_df.columns:
+                    mask = cat_df['Permission'].fillna("").astype(str).str.strip().str.upper() == "MASTER"
+                    cat_df = cat_df[~mask]
+            # -----------------------------------------------
 
-            // 3. Sheet: Monthly Worker Issuance (Pivot)
-            const pivotWorker = {};
-            rawSheetData.forEach(i => {
-                if (!pivotWorker[i.Company]) pivotWorker[i.Company] = {};
-                pivotWorker[i.Company][i.Month] = (pivotWorker[i.Company][i.Month] || 0) + 1;
-            });
-            const sheetWorker = Object.keys(pivotWorker).map(comp => {
-                let row = { "Company": comp };
-                let total = 0;
-                sortedMonths.forEach(m => {
-                    let val = pivotWorker[comp][m] || 0;
-                    row[m] = val;
-                    total += val;
-                });
-                row["Total"] = total;
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetWorker), "Worker_Monthly_Trend");
+            is_ko = (st.session_state['language'] == "KO")
+            col_top_display = "Top_KO" if is_ko else "Top_EN"
+            col_bot_display = "Bottom_KO" if is_ko else "Bottom_EN"
+            
+            col1, col2 = st.columns(2)
+            passport_no = col1.text_input(get_text("passport_label"), max_chars=5, key="k_passport")
+            passport_check = col2.text_input(get_text("passport_check_label"), max_chars=5, key="k_pass_check")
 
-            // 4. Sheet: Monthly Reason Analysis (Pivot - Using EN for global consistency)
-            const pivotReason = {};
-            rawSheetData.forEach(i => {
-                const reasonKey = i["Bottom_Category(EN)"] || i["Bottom_Category(KO)"]; // Use EN, fallback to KO
-                if (!pivotReason[reasonKey]) pivotReason[reasonKey] = {};
-                pivotReason[reasonKey][i.Month] = (pivotReason[reasonKey][i.Month] || 0) + 1;
-            });
-            const sheetReason = Object.keys(pivotReason).map(r => {
-                let row = { "Reason": r };
-                let total = 0;
-                sortedMonths.forEach(m => {
-                    let val = pivotReason[r][m] || 0;
-                    row[m] = val;
-                    total += val;
-                });
-                row["Total"] = total;
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetReason), "Reason_Analysis");
+            default_opt = get_text("select_default")
+            
+            top_cats = [default_opt] + sorted(cat_df[col_top_display].unique().tolist())
+            selected_top = st.selectbox(get_text("cat_top"), top_cats, key="k_top")
 
-            // 5. Sheet: Cumulative Worker Issuance
-            const sheetCumulative = Object.keys(pivotWorker).map(comp => {
-                let row = { "Company": comp };
-                let sum = 0;
-                sortedMonths.forEach(m => {
-                    let val = pivotWorker[comp][m] || 0;
-                    sum += val;
-                    row[m] = sum;
-                });
-                row["Grand_Total"] = sum;
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetCumulative), "Worker_Cumulative");
+            bot_cats = [default_opt]
+            if selected_top != default_opt:
+                filtered_df = cat_df[cat_df[col_top_display] == selected_top]
+                bot_cats += sorted(filtered_df[col_bot_display].unique().tolist())
+            
+            selected_bot = st.selectbox(get_text("cat_bot"), bot_cats, disabled=(selected_top == default_opt), key="k_bot")
 
-            // 6. Sheet: Subcon Direct Status
-            const subconStats = {};
-            subcon.forEach(row => {
-                const name = row[2], type = row[3], qty = Number(row[4]) || 0;
-                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
-                if (type === 'Give') subconStats[name].give += qty;
-                else if (type === 'Use') subconStats[name].use += qty;
-            });
-            const sheetSubcon = Object.keys(subconStats).map(name => {
-                const s = subconStats[name];
-                return { "Company": name, "Total_Given": s.give, "Total_Used": s.use, "Current_Balance": s.give - s.use };
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetSubcon), "Subcon_Direct_Status");
+            coin_count = 0
+            selected_row = None
 
-            // Export
-            const now = new Date();
-            const dateStr = now.toISOString().slice(0,10);
-            XLSX.writeFile(wb, `SAY_COIN_Analytics_${dateStr}.xlsx`);
-        }
+            if selected_bot != default_opt:
+                try:
+                    selected_row = cat_df[
+                        (cat_df[col_top_display] == selected_top) & 
+                        (cat_df[col_bot_display] == selected_bot)
+                    ].iloc[0]
+                    coin_count = int(selected_row['Quantity'])
+                except:
+                    coin_count = 1
+            
+            entered_coins = []
+            if coin_count > 0:
+                st.markdown(get_text("coin_input_guide", coin_count))
+                cols = st.columns(min(coin_count, 4))
+                for i in range(coin_count):
+                    with cols[i % 4]:
+                        val = st.text_input(
+                            get_text("coin_input_label", i+1, coin_count), 
+                            max_chars=4, 
+                            key=f"k_coin_dynamic_{i}"
+                        )
+                        entered_coins.append(val)
 
-        // --- Chart Helpers ---
-        function getTopKeys(obj, limit = 5) { return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit); }
-        function drawBarChart(id, data, color) {
-            const ctx = document.getElementById(id).getContext('2d');
-            if (charts[id]) charts[id].destroy();
-            const sorted = getTopKeys(data, 10);
-            charts[id] = new Chart(ctx, { type: 'bar', data: { labels: sorted.map(i => i[0]), datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } } });
-        }
-        function drawPieChart(id, used, remaining) {
-            const ctx = document.getElementById(id).getContext('2d');
-            if (charts[id]) charts[id].destroy();
-            charts[id] = new Chart(ctx, { type: 'doughnut', data: { labels: ['Redeemed', 'Active'], datasets: [{ data: [used, remaining], backgroundColor: ['#EF4444', '#10B981'] }] }, options: { responsive: true, maintainAspectRatio: false } });
-        }
-        function drawLineChart(id, trendData, isCumulative) {
-            const ctx = document.getElementById(id).getContext('2d');
-            if (charts[id]) charts[id].destroy();
-            const allMonths = new Set(); Object.values(trendData).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
-            const labels = Array.from(allMonths).sort();
-            const datasets = Object.keys(trendData).map((comp, idx) => {
-                const hue = (idx * 137.5) % 360;
-                return { 
-                    label: comp, 
-                    data: labels.map(m => trendData[comp][m] || 0), 
-                    borderColor: `hsl(${hue}, 70%, 50%)`, 
-                    backgroundColor: isCumulative ? `hsla(${hue}, 70%, 50%, 0.1)` : `hsl(${hue}, 70%, 50%)`,
-                    fill: isCumulative, 
-                    tension: 0.3, pointRadius: 3 
-                };
-            });
-            charts[id] = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } } });
-        }
-        function drawSubconTable(subconData) {
-            const subconStats = {}; 
-            subconData.forEach(row => { const name = row[2], type = row[3], qty = Number(row[4]) || 0; if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 }; if (type === 'Give') subconStats[name].give += qty; else if (type === 'Use') subconStats[name].use += qty; });
-            const tbody = document.getElementById('subconTableBody'); tbody.innerHTML = '';
-            Object.keys(subconStats).forEach(name => { const s = subconStats[name], balance = s.give - s.use; tbody.innerHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="px-6 py-4 font-medium text-gray-900">${name}</td><td class="px-6 py-4 text-right text-blue-600">+${s.give.toLocaleString()}</td><td class="px-6 py-4 text-right text-red-600">-${s.use.toLocaleString()}</td><td class="px-6 py-4 text-right font-bold">${balance.toLocaleString()}</td></tr>`; });
-        }
-    </script>
-</body>
-</html>
+            note = st.text_area(get_text("note_label"), height=80, key="k_note")
+
+            if st.button(get_text("submit_btn"), type="primary", use_container_width=True):
+                if (not passport_no or not passport_check or 
+                    selected_top == default_opt or selected_bot == default_opt or
+                    any(c == "" for c in entered_coins)):
+                    st.warning(get_text("warning_fill"))
+                elif passport_no != passport_check:
+                    st.warning(get_text("warning_pass_mismatch"))
+                elif len(entered_coins) != len(set(entered_coins)):
+                    st.warning(get_text("warning_coin_self_dup"))
+                else:
+                    final_passport = clean_numeric_str(passport_no, 5)
+                    final_coins = [clean_numeric_str(c, 4) for c in entered_coins]
+
+                    try:
+                        existing_data = read_data_with_retry(worksheet="Logs", ttl=0)
+                        
+                        if not existing_data.empty:
+                            existing_coins = existing_data['Coin_No'].apply(lambda x: clean_numeric_str(x, 4)).tolist()
+                            duplicates = [c for c in final_coins if c in existing_coins]
+                            if duplicates:
+                                raise Exception(get_text("duplicate_msg", ", ".join(duplicates)))
+
+                        new_rows = []
+                        now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        val_top_ko = selected_row['Top_KO']
+                        val_bot_ko = selected_row['Bottom_KO']
+                        val_top_en = selected_row['Top_EN']
+                        val_bot_en = selected_row['Bottom_EN']
+
+                        for c_no in final_coins:
+                            new_rows.append({
+                                "Timestamp": now_ts,
+                                "Manager_ID": st.session_state['user_id'],
+                                "Manager_Name": st.session_state['user_name'],
+                                "Passport_No": final_passport,
+                                "Coin_No": c_no,
+                                "Top_KO": val_top_ko,
+                                "Bottom_KO": val_bot_ko,
+                                "Top_EN": val_top_en,
+                                "Bottom_EN": val_bot_en,
+                                "Note": note
+                            })
+                        
+                        new_df = pd.DataFrame(new_rows)
+                        updated_data = pd.concat([existing_data, new_df], ignore_index=True)
+                        update_data_with_retry(worksheet="Logs", data=updated_data)
+                        
+                        get_cached_logs(force_refresh=True)
+                        show_result_popup(True, clear_on_ok=True)
+                        
+                    except Exception as e:
+                        show_result_popup(False, str(e))
+
+        # [TAB 2] 지급 기록
+        with tabs[1]:
+            st.subheader(get_text("header_history"))
+            if st.button(get_text("refresh_btn"), key="hist_refresh"):
+                get_cached_logs(force_refresh=True)
+                st.rerun()
+                
+            try:
+                all_logs = get_cached_logs()
+                my_logs = all_logs[all_logs['Manager_ID'] == st.session_state['user_id']].copy()
+                
+                if not my_logs.empty:
+                    my_logs['Passport_No'] = my_logs['Passport_No'].apply(lambda x: clean_numeric_str(x, 5))
+                    my_logs['Coin_No'] = my_logs['Coin_No'].apply(lambda x: clean_numeric_str(x, 4))
+                    
+                    is_ko = (st.session_state['language'] == "KO")
+                    show_top = "Top_KO" if is_ko else "Top_EN"
+                    show_bot = "Bottom_KO" if is_ko else "Bottom_EN"
+
+                    display_df = my_logs[['Timestamp', 'Manager_ID', 'Manager_Name', 'Passport_No', 'Coin_No', show_top, show_bot, 'Note']].copy()
+                    display_df.columns = LANG[st.session_state['language']]['table_cols']
+                    
+                    st.dataframe(display_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info(get_text("no_data"))
+            except Exception:
+                st.error(get_text("fail_msg"))
+
+        # [TAB 3] 코인 사용
+        if st.session_state['user_role'] == "Master":
+            with tabs[2]:
+                st.subheader(get_text("tab3"))
+                
+                search_mode = st.radio(
+                    get_text("redeem_search_mode"),
+                    options=["Worker", "Coin"],
+                    format_func=lambda x: get_text("mode_worker") if x == "Worker" else get_text("mode_coin"),
+                    horizontal=True
+                )
+                
+                if st.button(get_text("refresh_btn"), key="redeem_refresh"):
+                    get_cached_logs(force_refresh=True)
+                    st.rerun()
+
+                st.divider()
+
+                if search_mode == "Worker":
+                    col_s1, col_s2 = st.columns([3, 1])
+                    search_passport = col_s1.text_input(get_text("redeem_search_label"), max_chars=5, key="redeem_search_key")
+                    do_search = col_s2.button(get_text("redeem_search_btn"), use_container_width=True)
+
+                    if search_passport:
+                        try:
+                            all_logs = get_cached_logs().copy()
+                            clean_search_key = clean_numeric_str(search_passport, 5)
+
+                            all_logs['Coin_Clean'] = all_logs['Coin_No'].apply(lambda x: clean_numeric_str(x, 4))
+                            all_logs['Passport_Clean'] = all_logs['Passport_No'].apply(lambda x: clean_numeric_str(x, 5))
+                            
+                            valid_logs = all_logs[~all_logs['Coin_Clean'].str.contains(r'\*', regex=True)].copy()
+                            target_logs = valid_logs[valid_logs['Passport_Clean'] == clean_search_key].copy()
+                            
+                            count = len(target_logs)
+                            st.metric(label="Available Coins", value=f"{count} EA")
+
+                            if count > 0:
+                                is_ko = (st.session_state['language'] == "KO")
+                                show_bot = "Bottom_KO" if is_ko else "Bottom_EN"
+
+                                target_logs['Coin_No'] = target_logs['Coin_Clean']
+                                display_df = target_logs[['Coin_No', 'Timestamp', show_bot, 'Manager_Name']]
+                                
+                                st.write(get_text("redeem_table_title"))
+                                display_df.insert(0, "Select", False)
+                                
+                                edited_df = st.data_editor(
+                                    display_df,
+                                    column_config={
+                                        "Select": st.column_config.CheckboxColumn(get_text("col_select"), default=False),
+                                        "Coin_No": get_text("col_coin_no"),
+                                        "Timestamp": get_text("col_timestamp"),
+                                        show_bot: get_text("col_reason"),
+                                        "Manager_Name": get_text("col_manager")
+                                    },
+                                    disabled=["Coin_No", "Timestamp", show_bot, "Manager_Name"],
+                                    hide_index=True,
+                                    use_container_width=True
+                                )
+
+                                redeem_reason = st.text_input(get_text("redeem_reason_label"), key="redeem_reason_input")
+                                
+                                if st.button(get_text("redeem_btn"), type="primary"):
+                                    selected_coins = edited_df[edited_df["Select"] == True]["Coin_No"].tolist()
+                                    
+                                    if not selected_coins:
+                                        st.warning(get_text("redeem_warning"))
+                                    elif not redeem_reason:
+                                        st.warning(get_text("redeem_reason_warning"))
+                                    else:
+                                        try:
+                                            refresh_logs = read_data_with_retry(worksheet="Logs", ttl=0)
+                                            refresh_logs['Coin_Clean'] = refresh_logs['Coin_No'].apply(lambda x: clean_numeric_str(x, 4))
+                                            refresh_logs['Passport_Clean'] = refresh_logs['Passport_No'].apply(lambda x: clean_numeric_str(x, 5))
+
+                                            usage_records = []
+                                            now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                            
+                                            selected_clean = [clean_numeric_str(c, 4).replace("*","") for c in selected_coins]
+                                            mask = (refresh_logs['Coin_Clean'].isin(selected_clean)) & \
+                                                   (refresh_logs['Passport_Clean'] == clean_search_key)
+                                            
+                                            rows_to_update = refresh_logs[mask].index
+                                            
+                                            for idx in rows_to_update:
+                                                old_val = str(refresh_logs.at[idx, 'Coin_No'])
+                                                pass_val = str(refresh_logs.at[idx, 'Passport_No'])
+                                                if "*" not in old_val:
+                                                    refresh_logs.at[idx, 'Coin_No'] = old_val + "*"
+                                                    usage_records.append({
+                                                        "Timestamp": now_ts,
+                                                        "Manager_ID": st.session_state['user_id'],
+                                                        "Manager_Name": st.session_state['user_name'],
+                                                        "Passport_No": pass_val,
+                                                        "Coin_No": clean_numeric_str(old_val, 4),
+                                                        "Reason": redeem_reason
+                                                    })
+                                            
+                                            refresh_logs = refresh_logs.drop(columns=['Coin_Clean', 'Passport_Clean'], errors='ignore')
+                                            update_data_with_retry(worksheet="Logs", data=refresh_logs)
+                                            
+                                            if usage_records:
+                                                new_usage_df = pd.DataFrame(usage_records).astype(str)
+                                                try:
+                                                    existing_usage = read_data_with_retry(worksheet="Usage", ttl=0)
+                                                    updated_usage = pd.concat([existing_usage, new_usage_df], ignore_index=True)
+                                                except Exception:
+                                                    updated_usage = new_usage_df
+                                                
+                                                update_data_with_retry(worksheet="Usage", data=updated_usage)
+
+                                            get_cached_logs(force_refresh=True)
+                                            show_result_popup(True, clear_on_ok=True)
+
+                                        except Exception as e:
+                                            show_result_popup(False, str(e))
+
+                            else:
+                                st.info(get_text("no_data"))
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+                # B. 코인 번호 검색 모드
+                else: 
+                    col_c1, col_c2 = st.columns([3, 1])
+                    search_coin_no = col_c1.text_input(get_text("redeem_coin_search_label"), max_chars=4, key="redeem_coin_search_key")
+                    do_search_coin = col_c2.button(get_text("redeem_search_btn"), use_container_width=True)
+
+                    if search_coin_no:
+                        try:
+                            all_logs = get_cached_logs().copy()
+                            clean_coin_key = clean_numeric_str(search_coin_no, 4)
+                            all_logs['Coin_Clean'] = all_logs['Coin_No'].apply(lambda x: clean_numeric_str(x, 4))
+                            
+                            target_row = all_logs[
+                                (all_logs['Coin_Clean'].str.replace("*","") == clean_coin_key) & 
+                                (~all_logs['Coin_Clean'].str.contains(r'\*'))
+                            ]
+
+                            if not target_row.empty:
+                                row_data = target_row.iloc[0]
+                                owner_passport = clean_numeric_str(row_data['Passport_No'], 5)
+                                
+                                st.info(get_text("coin_owner_info", owner_passport))
+                                redeem_reason_coin = st.text_input(get_text("redeem_reason_label"), key="redeem_reason_input")
+                                
+                                if st.button(get_text("redeem_single_btn"), type="primary"):
+                                    if not redeem_reason_coin:
+                                        st.warning(get_text("redeem_reason_warning"))
+                                    else:
+                                        try:
+                                            refresh_logs = read_data_with_retry(worksheet="Logs", ttl=0)
+                                            refresh_logs['Coin_Clean'] = refresh_logs['Coin_No'].apply(lambda x: clean_numeric_str(x, 4))
+                                            
+                                            mask = (refresh_logs['Coin_Clean'] == clean_coin_key) & \
+                                                   (~refresh_logs['Coin_No'].astype(str).str.contains(r'\*'))
+                                            
+                                            rows_to_update = refresh_logs[mask].index
+                                            
+                                            if len(rows_to_update) > 0:
+                                                idx = rows_to_update[0]
+                                                old_val = str(refresh_logs.at[idx, 'Coin_No'])
+                                                pass_val = str(refresh_logs.at[idx, 'Passport_No'])
+                                                
+                                                refresh_logs.at[idx, 'Coin_No'] = old_val + "*"
+                                                
+                                                now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                                new_record = {
+                                                    "Timestamp": now_ts,
+                                                    "Manager_ID": st.session_state['user_id'],
+                                                    "Manager_Name": st.session_state['user_name'],
+                                                    "Passport_No": pass_val,
+                                                    "Coin_No": clean_numeric_str(old_val, 4),
+                                                    "Reason": redeem_reason_coin
+                                                }
+                                                
+                                                refresh_logs = refresh_logs.drop(columns=['Coin_Clean'], errors='ignore')
+                                                update_data_with_retry(worksheet="Logs", data=refresh_logs)
+                                                
+                                                try:
+                                                    existing_usage = read_data_with_retry(worksheet="Usage", ttl=0)
+                                                    updated_usage = pd.concat([existing_usage, pd.DataFrame([new_record]).astype(str)], ignore_index=True)
+                                                except Exception:
+                                                    updated_usage = pd.DataFrame([new_record]).astype(str)
+                                                
+                                                update_data_with_retry(worksheet="Usage", data=updated_usage)
+                                                get_cached_logs(force_refresh=True)
+                                                show_result_popup(True, clear_on_ok=True)
+                                            else:
+                                                show_result_popup(False, get_text("coin_not_found"))
+                                        except Exception as e:
+                                            show_result_popup(False, str(e))
+                            else:
+                                st.warning(get_text("coin_not_found"))
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+        # [TAB 4] 협력사 관리
+        if st.session_state['user_role'] == "Master":
+            with tabs[3]:
+                st.subheader(get_text("tab4"))
+                
+                try:
+                    users_df = load_users_data()
+                    subcon_list = users_df[users_df['Role'] == 'Subcon']['Name'].unique().tolist()
+                    subcon_list.sort()
+                except:
+                    subcon_list = []
+                
+                if not subcon_list:
+                    st.warning("No Subcontractors found in Users sheet.")
+                    st.stop()
+
+                selected_subcon = st.selectbox(get_text("subcon_select_label"), [get_text("select_default")] + subcon_list)
+                
+                if st.button(get_text("refresh_btn"), key="subcon_refresh"):
+                    get_cached_subcon_logs(force_refresh=True)
+                    st.rerun()
+
+                if selected_subcon != get_text("select_default"):
+                    current_balance = 0
+                    try:
+                        subcon_logs = get_cached_subcon_logs()
+                        if not subcon_logs.empty and 'Subcon_Name' in subcon_logs.columns:
+                            df_s = subcon_logs[subcon_logs['Subcon_Name'] == selected_subcon]
+                            given = df_s[df_s['Type'] == 'Give']['Quantity'].astype(int).sum()
+                            used = df_s[df_s['Type'] == 'Use']['Quantity'].astype(int).sum()
+                            current_balance = given - used
+                    except Exception:
+                        pass
+                    
+                    st.info(get_text("subcon_balance_fmt", current_balance))
+                    
+                    st.divider()
+                    
+                    action_type = st.radio(
+                        get_text("subcon_action_type"), 
+                        ["Give", "Use"],
+                        format_func=lambda x: get_text("action_give") if x == "Give" else get_text("action_use"),
+                        horizontal=True
+                    )
+                    
+                    col_q, col_r = st.columns([1, 3])
+                    
+                    if 'subcon_qty_input' not in st.session_state:
+                        st.session_state['subcon_qty_input'] = 1
+                    
+                    qty = col_q.number_input(
+                        get_text("subcon_qty_label"), 
+                        min_value=1, 
+                        step=1, 
+                        format="%d", 
+                        key="subcon_qty_input"
+                    )
+
+                    reason = col_r.text_input(get_text("subcon_reason_label"), key="subcon_reason_input")
+                    
+                    btn_label = get_text("subcon_btn_give") if action_type == "Give" else get_text("subcon_btn_use")
+                    
+                    if st.button(btn_label, type="primary", use_container_width=True):
+                        if qty < 1:
+                            st.warning(get_text("subcon_warn_qty"))
+                        elif not reason:
+                            st.warning(get_text("subcon_warn_reason"))
+                        elif action_type == "Use" and qty > current_balance:
+                            st.warning(get_text("subcon_warn_balance"))
+                        else:
+                            try:
+                                now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                new_record = {
+                                    "Timestamp": now_ts,
+                                    "Manager_Name": st.session_state['user_name'],
+                                    "Subcon_Name": selected_subcon,
+                                    "Type": action_type,
+                                    "Quantity": int(qty),
+                                    "Reason": reason
+                                }
+                                
+                                try:
+                                    existing_logs = read_data_with_retry(worksheet="Subcon_Logs", ttl=0)
+                                    updated_logs = pd.concat([existing_logs, pd.DataFrame([new_record])], ignore_index=True)
+                                except Exception:
+                                    updated_logs = pd.DataFrame([new_record])
+                                
+                                update_data_with_retry(worksheet="Subcon_Logs", data=updated_logs)
+                                get_cached_subcon_logs(force_refresh=True)
+                                show_result_popup(True, clear_on_ok=True)
+                                
+                            except Exception as e:
+                                show_result_popup(False, str(e))
+
+if __name__ == "__main__":
+    main()
