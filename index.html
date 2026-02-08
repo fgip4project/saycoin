@@ -18,8 +18,6 @@
         body.modal-active { overflow-x: hidden; overflow-y: visible !important; }
         .tooltip-text { visibility: hidden; width: 300px; background-color: #333; color: #fff; text-align: left; border-radius: 6px; padding: 10px; position: absolute; z-index: 100; top: 100%; left: 50%; margin-left: -150px; opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: none; }
         .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
-        .toggle-checkbox:checked { right: 0; border-color: #4F46E5; }
-        .toggle-checkbox:checked + .toggle-label { background-color: #4F46E5; }
     </style>
 </head>
 <body class="p-6">
@@ -68,8 +66,7 @@
 
     <div id="dashboard" class="hidden space-y-8">
         
-        <div id="statusBanner" class="hidden p-4 mb-4 flex justify-between items-center border-l-4 rounded bg-gray-50">
-            </div>
+        <div id="statusBanner" class="hidden p-4 mb-4 flex justify-between items-center border-l-4 rounded bg-gray-50"></div>
 
         <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2"><i class="far fa-calendar-alt mr-1"></i> <span data-lang="sect_month">이번 달 현황</span></h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -104,14 +101,12 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
-            
             <div class="lg:col-span-3 flex justify-end">
                 <div class="inline-flex bg-gray-200 rounded-lg p-1">
                     <button onclick="setChartMode('all')" id="btnAll" class="px-4 py-1 rounded-md text-sm font-bold bg-white shadow text-gray-800 transition">All Time</button>
                     <button onclick="setChartMode('month')" id="btnMonth" class="px-4 py-1 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition">This Month</button>
                 </div>
             </div>
-
             <div class="card p-6">
                 <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_general">일반 지급 사유</h3>
                 <canvas id="chartGeneral"></canvas>
@@ -131,15 +126,11 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="card p-6">
                 <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_trend_worker">협력사별 코인 지급 추세(근로자)</h3>
-                <div class="h-80">
-                    <canvas id="chartTrend"></canvas>
-                </div>
+                <div class="h-80"><canvas id="chartTrend"></canvas></div>
             </div>
             <div class="card p-6">
                 <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_cumulative">협력사별 지급 누적량 (Cumulative)</h3>
-                <div class="h-80">
-                    <canvas id="chartCumulative"></canvas>
-                </div>
+                <div class="h-80"><canvas id="chartCumulative"></canvas></div>
             </div>
         </div>
         
@@ -200,18 +191,18 @@
         let localMasterMap = {};    
         let charts = {};
 
-        // --- IndexedDB Class ---
+        // IndexedDB
         class MasterDB {
             constructor() { this.dbName = 'SayCoinMasterDB'; this.storeName = 'workers'; this.db = null; }
             async open() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open(this.dbName, 1);
-                    request.onupgradeneeded = (e) => {
+                    const req = indexedDB.open(this.dbName, 1);
+                    req.onupgradeneeded = (e) => {
                         const db = e.target.result;
                         if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName, { keyPath: 'passport' });
                     };
-                    request.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
-                    request.onerror = (e) => reject(e);
+                    req.onsuccess = (e) => { this.db = e.target.result; resolve(this.db); };
+                    req.onerror = (e) => reject(e);
                 });
             }
             async saveBulk(dataArray) {
@@ -237,7 +228,7 @@
         }
         const dbHelper = new MasterDB();
 
-        // --- Translations ---
+        // Translations
         const t = {
             title: { ko: "S.A.Y COIN Dashboard", en: "S.A.Y COIN Dashboard" },
             subtitle: { ko: "서버 저장 없는 실시간 로컬 분석", en: "Secure Client-side Analytics" },
@@ -273,6 +264,15 @@
             modal_desc: { ko: "엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.", en: "Paste [Passport, Company, Name, Designation] columns here." },
             btn_close: { ko: "닫기", en: "Close" },
             btn_save: { ko: "저장하기", en: "Save Locally" },
+
+            // Banner Texts
+            warn_title: { ko: "마스터 정보 없음", en: "No Master Data" },
+            warn_desc: { ko: "그래프에 '미등록(Unregistered)'이 표시됩니다. 상단 [마스터정보 입력]을 눌러 데이터를 저장하세요.", en: "Charts show 'Unregistered'. Please import data." },
+            err_title: { ko: "마스터파일 정보 업데이트가 필요합니다.", en: "Master Data Update Required" },
+            err_desc_prefix: { ko: "지급 내역에 있는 여권번호 중 ", en: "Found " },
+            err_desc_suffix: { ko: "명의 정보를 마스터파일에서 찾을 수 없습니다. 최신 엑셀 파일로 업데이트 해주세요.", en: " passports in logs missing from Master Data. Please update with latest Excel." },
+            ok_title: { ko: "마스터파일 로드 완료", en: "Master Data Loaded" },
+            ok_desc: { ko: "명의 데이터가 로드되었습니다. 모든 활성 여권번호가 매칭됩니다.", en: " entries loaded. All active passports matched." }
         };
 
         window.onload = async function() { 
@@ -285,12 +285,12 @@
             currentLang = currentLang === 'ko' ? 'en' : 'ko';
             document.getElementById('langBtnText').innerText = currentLang === 'ko' ? 'EN' : 'KO';
             applyLanguage();
+            // Re-render to update charts and banner
             if (cachedData) processAndRender(cachedData);
         }
 
         function setChartMode(mode) {
             chartMode = mode;
-            // UI Toggle Style
             const btnAll = document.getElementById('btnAll');
             const btnMonth = document.getElementById('btnMonth');
             if(mode === 'all') {
@@ -364,51 +364,23 @@
             }
         }
 
-        // --- Core Logic ---
         function checkMasterDataHealth(logs) {
             let missingCount = 0;
-            // Check for unique passports missing in master
-            const uniquePassports = new Set(logs.map(r => r[3])); // D column
-            uniquePassports.forEach(pp => {
-                if (pp && !localMasterMap[pp]) missingCount++;
-            });
+            const uniquePassports = new Set(logs.map(r => r[3]));
+            uniquePassports.forEach(pp => { if (pp && !localMasterMap[pp]) missingCount++; });
 
             const banner = document.getElementById('statusBanner');
             banner.classList.remove('hidden', 'bg-green-50', 'border-green-500', 'bg-red-50', 'border-red-500', 'bg-yellow-50', 'border-yellow-400');
             
             if (Object.keys(localMasterMap).length === 0) {
-                // No Master Data
                 banner.classList.add('bg-yellow-50', 'border-yellow-400', 'border-l-4');
-                banner.innerHTML = `
-                    <div class="flex items-center">
-                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i>
-                        <div>
-                            <p class="text-sm text-yellow-700 font-bold">${t.warn_title[currentLang]}</p>
-                            <p class="text-xs text-yellow-600">${t.warn_desc[currentLang]}</p>
-                        </div>
-                    </div>`;
+                banner.innerHTML = `<div class="flex items-center"><i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i><div><p class="text-sm text-yellow-700 font-bold">${t.warn_title[currentLang]}</p><p class="text-xs text-yellow-600">${t.warn_desc[currentLang]}</p></div></div>`;
             } else if (missingCount > 0) {
-                // Data Mismatch (Red)
                 banner.classList.add('bg-red-50', 'border-red-500', 'border-l-4');
-                banner.innerHTML = `
-                    <div class="flex items-center">
-                        <i class="fas fa-times-circle text-red-500 mr-3"></i>
-                        <div>
-                            <p class="text-sm text-red-700 font-bold">마스터파일 정보 업데이트가 필요합니다.</p>
-                            <p class="text-xs text-red-600">지급 내역에 있는 여권번호 중 ${missingCount}명의 정보를 마스터파일에서 찾을 수 없습니다. 최신 엑셀 파일로 업데이트 해주세요.</p>
-                        </div>
-                    </div>`;
+                banner.innerHTML = `<div class="flex items-center"><i class="fas fa-times-circle text-red-500 mr-3"></i><div><p class="text-sm text-red-700 font-bold">${t.err_title[currentLang]}</p><p class="text-xs text-red-600">${t.err_desc_prefix[currentLang]} <b>${missingCount}</b> ${t.err_desc_suffix[currentLang]}</p></div></div>`;
             } else {
-                // All Good (Green)
                 banner.classList.add('bg-green-50', 'border-green-500', 'border-l-4');
-                banner.innerHTML = `
-                    <div class="flex items-center">
-                        <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                        <div>
-                            <p class="text-sm text-green-700 font-bold">마스터파일 로드 완료</p>
-                            <p class="text-xs text-green-600">${Object.keys(localMasterMap).length} entries loaded. All active passports matched.</p>
-                        </div>
-                    </div>`;
+                banner.innerHTML = `<div class="flex items-center"><i class="fas fa-check-circle text-green-500 mr-3"></i><div><p class="text-sm text-green-700 font-bold">${t.ok_title[currentLang]}</p><p class="text-xs text-green-600"><b>${Object.keys(localMasterMap).length}</b>${t.ok_desc[currentLang]}</p></div></div>`;
             }
         }
 
@@ -421,16 +393,15 @@
         function processAndRender(data) {
             const { logs, usage, subcon, categories } = data;
             
-            // 1. Check Data Integrity
+            // 1. Banner Update
             checkMasterDataHealth(logs);
 
-            // 2. KPI Calculations
+            // 2. KPI
             const totalIssued = logs.length;
             const totalUsed = usage.length;
             const remaining = totalIssued - totalUsed;
             const rate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + "%" : "0%";
 
-            // This Month KPI
             const monthIssued = logs.filter(r => isThisMonth(r[0])).length;
             const monthUsed = usage.filter(r => isThisMonth(r[0])).length;
 
@@ -438,29 +409,23 @@
             document.getElementById('totalUsed').innerText = totalUsed.toLocaleString();
             document.getElementById('currentCirculation').innerText = remaining.toLocaleString();
             document.getElementById('returnRate').innerText = rate;
-            
             document.getElementById('monthIssued').innerText = monthIssued.toLocaleString();
             document.getElementById('monthUsed').innerText = monthUsed.toLocaleString();
 
-
-            // 3. Mapping & Aggregation
+            // 3. Process Data
             const permMap = {};
             categories.forEach(row => { if (row[1]) permMap[row[1]] = row[5]; });
 
             const reasonGeneral = {}, reasonHSE = {}, companyTrend = {};
-            const activeCoinsByComp = {}; // For Doughnut
+            const activeCoinsByComp = {}; 
 
-            // Process Logs
             logs.forEach(row => {
                 const ts = new Date(row[0]);
                 const passport = row[3];
-                // Column Selection for Reason based on Lang
-                // KO: Bottom_KO(6), EN: Bottom_EN(8)
-                const reasonColIdx = currentLang === 'ko' ? 6 : 8;
-                const reason = row[reasonColIdx] || row[6]; // Fallback to KO
-                const categoryKey = row[6]; // Use original key for permission check
+                const reasonColIdx = currentLang === 'ko' ? 6 : 8; // Auto-Switch Reason Language
+                const reason = row[reasonColIdx] || row[6]; 
+                const categoryKey = row[6]; // Always check Permission with KO Key
 
-                // Filter for Charts (Toggle)
                 if (chartMode === 'all' || isThisMonth(row[0])) {
                     if (permMap[categoryKey] === 'Master') reasonHSE[reason] = (reasonHSE[reason] || 0) + 1;
                     else reasonGeneral[reason] = (reasonGeneral[reason] || 0) + 1;
@@ -469,7 +434,6 @@
                 let comp = 'Unregistered';
                 if (localMasterMap[passport]) comp = localMasterMap[passport].company || 'Unknown';
                 
-                // Active Coin Calc (Issued +)
                 activeCoinsByComp[comp] = (activeCoinsByComp[comp] || 0) + 1;
 
                 const yyyymm = ts.toISOString().slice(0, 7);
@@ -477,19 +441,13 @@
                 companyTrend[comp][yyyymm] = (companyTrend[comp][yyyymm] || 0) + 1;
             });
 
-            // Process Usage (Subtract from Active Coins)
             usage.forEach(row => {
                 const passport = row[3];
                 let comp = 'Unregistered';
                 if (localMasterMap[passport]) comp = localMasterMap[passport].company || 'Unknown';
-                
-                // Active Coin Calc (Used -)
-                if (activeCoinsByComp[comp]) {
-                    activeCoinsByComp[comp] -= 1;
-                }
+                if (activeCoinsByComp[comp]) activeCoinsByComp[comp] -= 1;
             });
 
-            // Calculate Cumulative Data
             const allMonths = new Set();
             Object.values(companyTrend).forEach(m => Object.keys(m).forEach(k => allMonths.add(k)));
             const sortedMonths = Array.from(allMonths).sort();
@@ -505,16 +463,12 @@
                 });
             });
 
-            // Render Charts
+            // 4. Draw
             drawBarChart('chartGeneral', reasonGeneral, 'rgba(59, 130, 246, 0.7)');
             drawBarChart('chartHSE', reasonHSE, 'rgba(239, 68, 68, 0.7)');
             
-            // New Holdings Chart (Donut)
-            // Filter out 0 or negative balances for clearer chart
             const holdingsData = {};
-            Object.keys(activeCoinsByComp).forEach(k => {
-                if(activeCoinsByComp[k] > 0) holdingsData[k] = activeCoinsByComp[k];
-            });
+            Object.keys(activeCoinsByComp).forEach(k => { if(activeCoinsByComp[k] > 0) holdingsData[k] = activeCoinsByComp[k]; });
             drawDoughnutChart('chartHoldings', holdingsData);
 
             drawLineChart('chartTrend', companyTrend, false); 
@@ -522,143 +476,23 @@
             drawSubconTable(subcon);
         }
 
-        // ===============================================
-        // Excel Download
-        // ===============================================
-        function downloadExcel() {
-            if (!cachedData) return alert("No Data");
-            const { logs, subcon } = cachedData;
-            const wb = XLSX.utils.book_new();
-
-            // 1. Raw Data
-            const rawSheetData = logs.map(row => {
-                const passport = row[3];
-                const info = localMasterMap[passport] || { company: "Unregistered", name: "Unregistered", desig: "-" };
-                const date = new Date(row[0]);
-                return {
-                    "Timestamp": row[0],
-                    "Month": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`,
-                    "Manager": row[2],
-                    "Passport_No": passport,
-                    "Name": info.name,
-                    "Company": info.company,
-                    "Designation": info.desig,
-                    "Coin_No": row[4],
-                    "Top_Category(KO)": row[5],
-                    "Bottom_Category(KO)": row[6],
-                    "Top_Category(EN)": row[7],
-                    "Bottom_Category(EN)": row[8]
-                };
-            });
-            const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
-            XLSX.utils.book_append_sheet(wb, wsRaw, "Raw_Log_Data");
-
-            // 2. Helper for Pivot
-            const allMonths = new Set();
-            rawSheetData.forEach(i => allMonths.add(i.Month));
-            const sortedMonths = Array.from(allMonths).sort();
-
-            // 3. Sheet: Monthly Worker Issuance
-            const pivotWorker = {};
-            rawSheetData.forEach(i => {
-                if (!pivotWorker[i.Company]) pivotWorker[i.Company] = {};
-                pivotWorker[i.Company][i.Month] = (pivotWorker[i.Company][i.Month] || 0) + 1;
-            });
-            const sheetWorker = Object.keys(pivotWorker).map(comp => {
-                let row = { "Company": comp };
-                let total = 0;
-                sortedMonths.forEach(m => {
-                    let val = pivotWorker[comp][m] || 0;
-                    row[m] = val;
-                    total += val;
-                });
-                row["Total"] = total;
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetWorker), "Worker_Monthly_Trend");
-
-            // 4. Sheet: Reason Analysis (EN)
-            const pivotReason = {};
-            rawSheetData.forEach(i => {
-                const reasonKey = i["Bottom_Category(EN)"] || i["Bottom_Category(KO)"]; 
-                if (!pivotReason[reasonKey]) pivotReason[reasonKey] = {};
-                pivotReason[reasonKey][i.Month] = (pivotReason[reasonKey][i.Month] || 0) + 1;
-            });
-            const sheetReason = Object.keys(pivotReason).map(r => {
-                let row = { "Reason": r };
-                let total = 0;
-                sortedMonths.forEach(m => {
-                    let val = pivotReason[r][m] || 0;
-                    row[m] = val;
-                    total += val;
-                });
-                row["Total"] = total;
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetReason), "Reason_Analysis");
-
-            // 5. Sheet: Subcon Direct Status
-            const subconStats = {};
-            subcon.forEach(row => {
-                const name = row[2], type = row[3], qty = Number(row[4]) || 0;
-                if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 };
-                if (type === 'Give') subconStats[name].give += qty;
-                else if (type === 'Use') subconStats[name].use += qty;
-            });
-            const sheetSubcon = Object.keys(subconStats).map(name => {
-                const s = subconStats[name];
-                return { "Company": name, "Total_Given": s.give, "Total_Used": s.use, "Current_Balance": s.give - s.use };
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetSubcon), "Subcon_Direct_Status");
-
-            // Export
-            const now = new Date();
-            const dateStr = now.toISOString().slice(0,10);
-            XLSX.writeFile(wb, `SAY_COIN_Analytics_${dateStr}.xlsx`);
-        }
-
-        // --- Chart Helpers ---
+        // Helpers
         function getTopKeys(obj, limit = 5) { return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit); }
-        
         function drawBarChart(id, data, color) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
             const sorted = getTopKeys(data, 10);
             charts[id] = new Chart(ctx, { type: 'bar', data: { labels: sorted.map(i => i[0]), datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } } });
         }
-
         function drawDoughnutChart(id, dataObj) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
-            
-            // Sort by value
             const sorted = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
             const labels = sorted.map(i => i[0]);
             const values = sorted.map(i => i[1]);
-            
-            // Generate Colors
             const bgColors = labels.map((_, i) => `hsl(${(i * 360) / labels.length}, 70%, 60%)`);
-
-            charts[id] = new Chart(ctx, { 
-                type: 'doughnut', 
-                data: { 
-                    labels: labels, 
-                    datasets: [{ 
-                        data: values, 
-                        backgroundColor: bgColors,
-                        hoverOffset: 4
-                    }] 
-                }, 
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } }
-                    }
-                } 
-            });
+            charts[id] = new Chart(ctx, { type: 'doughnut', data: { labels: labels, datasets: [{ data: values, backgroundColor: bgColors, hoverOffset: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } } } } });
         }
-
         function drawLineChart(id, trendData, isCumulative) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
@@ -666,23 +500,43 @@
             const labels = Array.from(allMonths).sort();
             const datasets = Object.keys(trendData).map((comp, idx) => {
                 const hue = (idx * 137.5) % 360;
-                return { 
-                    label: comp, 
-                    data: labels.map(m => trendData[comp][m] || 0), 
-                    borderColor: `hsl(${hue}, 70%, 50%)`, 
-                    backgroundColor: isCumulative ? `hsla(${hue}, 70%, 50%, 0.1)` : `hsl(${hue}, 70%, 50%)`,
-                    fill: isCumulative, 
-                    tension: 0.3, pointRadius: 3 
-                };
+                return { label: comp, data: labels.map(m => trendData[comp][m] || 0), borderColor: `hsl(${hue}, 70%, 50%)`, backgroundColor: isCumulative ? `hsla(${hue}, 70%, 50%, 0.1)` : `hsl(${hue}, 70%, 50%)`, fill: isCumulative, tension: 0.3, pointRadius: 3 };
             });
             charts[id] = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } } });
         }
-
         function drawSubconTable(subconData) {
             const subconStats = {}; 
             subconData.forEach(row => { const name = row[2], type = row[3], qty = Number(row[4]) || 0; if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 }; if (type === 'Give') subconStats[name].give += qty; else if (type === 'Use') subconStats[name].use += qty; });
             const tbody = document.getElementById('subconTableBody'); tbody.innerHTML = '';
             Object.keys(subconStats).forEach(name => { const s = subconStats[name], balance = s.give - s.use; tbody.innerHTML += `<tr class="bg-white border-b hover:bg-gray-50"><td class="px-6 py-4 font-medium text-gray-900">${name}</td><td class="px-6 py-4 text-right text-blue-600">+${s.give.toLocaleString()}</td><td class="px-6 py-4 text-right text-red-600">-${s.use.toLocaleString()}</td><td class="px-6 py-4 text-right font-bold">${balance.toLocaleString()}</td></tr>`; });
+        }
+        function downloadExcel() {
+            if (!cachedData) return alert("No Data");
+            const { logs, subcon } = cachedData;
+            const wb = XLSX.utils.book_new();
+            const rawSheetData = logs.map(row => {
+                const passport = row[3];
+                const info = localMasterMap[passport] || { company: "Unregistered", name: "Unregistered", desig: "-" };
+                const date = new Date(row[0]);
+                return { "Timestamp": row[0], "Month": `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`, "Manager": row[2], "Passport_No": passport, "Name": info.name, "Company": info.company, "Designation": info.desig, "Coin_No": row[4], "Top_Category(KO)": row[5], "Bottom_Category(KO)": row[6], "Top_Category(EN)": row[7], "Bottom_Category(EN)": row[8] };
+            });
+            const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
+            XLSX.utils.book_append_sheet(wb, wsRaw, "Raw_Log_Data");
+
+            const allMonths = new Set(); rawSheetData.forEach(i => allMonths.add(i.Month)); const sortedMonths = Array.from(allMonths).sort();
+            const pivotWorker = {}; rawSheetData.forEach(i => { if (!pivotWorker[i.Company]) pivotWorker[i.Company] = {}; pivotWorker[i.Company][i.Month] = (pivotWorker[i.Company][i.Month] || 0) + 1; });
+            const sheetWorker = Object.keys(pivotWorker).map(comp => { let row = { "Company": comp }; let total = 0; sortedMonths.forEach(m => { let val = pivotWorker[comp][m] || 0; row[m] = val; total += val; }); row["Total"] = total; return row; });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetWorker), "Worker_Monthly_Trend");
+
+            const pivotReason = {}; rawSheetData.forEach(i => { const reasonKey = i["Bottom_Category(EN)"] || i["Bottom_Category(KO)"]; if (!pivotReason[reasonKey]) pivotReason[reasonKey] = {}; pivotReason[reasonKey][i.Month] = (pivotReason[reasonKey][i.Month] || 0) + 1; });
+            const sheetReason = Object.keys(pivotReason).map(r => { let row = { "Reason": r }; let total = 0; sortedMonths.forEach(m => { let val = pivotReason[r][m] || 0; row[m] = val; total += val; }); row["Total"] = total; return row; });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetReason), "Reason_Analysis");
+
+            const sheetSubcon = [];
+            const subconStats = {}; subcon.forEach(row => { const name = row[2], type = row[3], qty = Number(row[4]) || 0; if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 }; if (type === 'Give') subconStats[name].give += qty; else if (type === 'Use') subconStats[name].use += qty; });
+            Object.keys(subconStats).forEach(name => { const s = subconStats[name]; sheetSubcon.push({ "Company": name, "Total_Given": s.give, "Total_Used": s.use, "Current_Balance": s.give - s.use }); });
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetSubcon), "Subcon_Direct_Status");
+            const now = new Date(); XLSX.writeFile(wb, `SAY_COIN_Analytics_${now.toISOString().slice(0,10)}.xlsx`);
         }
     </script>
 </body>
