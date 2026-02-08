@@ -16,9 +16,10 @@
         .card:hover { transform: translateY(-2px); }
         .modal { transition: opacity 0.25s ease; }
         body.modal-active { overflow-x: hidden; overflow-y: visible !important; }
-        /* Tooltip Custom Style */
-        .tooltip-text { visibility: hidden; width: 300px; background-color: #333; color: #fff; text-align: left; border-radius: 6px; padding: 10px; position: absolute; z-index: 100; top: 100%; left: 50%; margin-left: -150px; opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; font-weight: normal; line-height: 1.4; box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: none; }
+        .tooltip-text { visibility: hidden; width: 300px; background-color: #333; color: #fff; text-align: left; border-radius: 6px; padding: 10px; position: absolute; z-index: 100; top: 100%; left: 50%; margin-left: -150px; opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: none; }
         .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+        .toggle-checkbox:checked { right: 0; border-color: #4F46E5; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #4F46E5; }
     </style>
 </head>
 <body class="p-6">
@@ -37,9 +38,9 @@
                     <i class="fas fa-question-circle text-gray-400 hover:text-indigo-500"></i>
                     <div class="tooltip-text">
                         <strong class="block mb-1 text-yellow-400">[보안 아키텍처 설명]</strong>
-                        1. <strong>개인정보 보호:</strong> 이름, 여권번호 등 민감한 마스터 데이터는 회사 보안 정책상 외부 서버(Google Cloud 등)에 저장되지 않습니다.<br>
-                        2. <strong>로컬 처리:</strong> 대신 사용자의 브라우저 내부 저장소(IndexedDB)에 암호화 없이 안전하게 격리되어 저장됩니다.<br>
-                        3. <strong>작동 원리:</strong> 대시보드가 실행될 때 서버의 '익명 로그'와 내 PC의 '실명 정보'가 브라우저 메모리 상에서 실시간으로 결합되어 차트를 생성합니다.
+                        1. <strong>개인정보 보호:</strong> 이름, 여권번호 등 민감한 마스터 데이터는 외부 서버에 저장되지 않습니다.<br>
+                        2. <strong>로컬 처리:</strong> 브라우저 내부 저장소(IndexedDB)에 안전하게 격리되어 저장됩니다.<br>
+                        3. <strong>작동 원리:</strong> 서버의 '익명 로그'와 내 PC의 '실명 정보'가 브라우저 메모리 상에서 결합됩니다.
                     </div>
                 </div>
             </div>
@@ -55,7 +56,7 @@
                 <i class="fas fa-file-import mr-2"></i><span data-lang="btn_upload">마스터정보 입력</span>
             </button>
             <button onclick="downloadExcel()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow">
-                <i class="fas fa-download mr-2"></i><span data-lang="btn_download">Excel Download (Eng)</span>
+                <i class="fas fa-download mr-2"></i><span data-lang="btn_download">Excel Download</span>
             </button>
         </div>
     </header>
@@ -67,46 +68,50 @@
 
     <div id="dashboard" class="hidden space-y-8">
         
-        <div id="cacheStatusBanner" class="hidden bg-green-50 border-l-4 border-green-500 p-4 mb-4 flex justify-between items-center">
-            <div class="flex items-center">
-                <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                <div>
-                    <p class="text-sm text-green-700 font-bold">로컬 데이터 로드 완료</p>
-                    <p class="text-xs text-green-600" id="cacheCountText">0 entries loaded from local cache.</p>
-                </div>
+        <div id="statusBanner" class="hidden p-4 mb-4 flex justify-between items-center border-l-4 rounded bg-gray-50">
+            </div>
+
+        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2"><i class="far fa-calendar-alt mr-1"></i> <span data-lang="sect_month">이번 달 현황</span></h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="card p-6 border-l-4 border-blue-400">
+                <p class="text-gray-500 text-sm" data-lang="card_issued_month">이번 달 지급</p>
+                <h2 class="text-3xl font-bold text-gray-800" id="monthIssued">-</h2>
+            </div>
+            <div class="card p-6 border-l-4 border-red-400">
+                <p class="text-gray-500 text-sm" data-lang="card_used_month">이번 달 사용</p>
+                <h2 class="text-3xl font-bold text-gray-800" id="monthUsed">-</h2>
             </div>
         </div>
 
-        <div id="cacheWarningBanner" class="hidden bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 flex justify-between items-center">
-             <div class="flex items-center">
-                <i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i>
-                <div>
-                    <p class="text-sm text-yellow-700 font-bold" data-lang="warn_title">마스터 정보 없음</p>
-                    <p class="text-xs text-yellow-600" data-lang="warn_desc">그래프에 '미등록(Unregistered)'이 표시됩니다. 상단 [마스터정보 입력]을 눌러 데이터를 저장하세요.</p>
-                </div>
-            </div>
-        </div>
-
+        <h3 class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2"><i class="fas fa-history mr-1"></i> <span data-lang="sect_total">전체 누적 현황</span></h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div class="card p-6 border-l-4 border-blue-500">
+            <div class="card p-6 border-l-4 border-blue-600">
                 <p class="text-gray-500 text-sm" data-lang="card_issued">총 지급 코인</p>
                 <h2 class="text-3xl font-bold text-gray-800" id="totalIssued">-</h2>
             </div>
-            <div class="card p-6 border-l-4 border-red-500">
+            <div class="card p-6 border-l-4 border-red-600">
                 <p class="text-gray-500 text-sm" data-lang="card_used">총 사용(회수) 코인</p>
                 <h2 class="text-3xl font-bold text-gray-800" id="totalUsed">-</h2>
             </div>
-            <div class="card p-6 border-l-4 border-green-500">
+            <div class="card p-6 border-l-4 border-green-600">
                 <p class="text-gray-500 text-sm" data-lang="card_remain">시중 유통량</p>
                 <h2 class="text-3xl font-bold text-gray-800" id="currentCirculation">-</h2>
             </div>
-            <div class="card p-6 border-l-4 border-purple-500">
+            <div class="card p-6 border-l-4 border-purple-600">
                 <p class="text-gray-500 text-sm" data-lang="card_rate">코인 회수율</p>
                 <h2 class="text-3xl font-bold text-gray-800" id="returnRate">-</h2>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
+            
+            <div class="lg:col-span-3 flex justify-end">
+                <div class="inline-flex bg-gray-200 rounded-lg p-1">
+                    <button onclick="setChartMode('all')" id="btnAll" class="px-4 py-1 rounded-md text-sm font-bold bg-white shadow text-gray-800 transition">All Time</button>
+                    <button onclick="setChartMode('month')" id="btnMonth" class="px-4 py-1 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition">This Month</button>
+                </div>
+            </div>
+
             <div class="card p-6">
                 <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_general">일반 지급 사유</h3>
                 <canvas id="chartGeneral"></canvas>
@@ -115,10 +120,10 @@
                 <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_hse">HSE 지급 사유</h3>
                 <canvas id="chartHSE"></canvas>
             </div>
-             <div class="card p-6">
-                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_status">발행 vs 회수 비율</h3>
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-700 mb-4" data-lang="chart_holdings">협력사별 코인 보유 비율</h3>
                 <div class="h-64 flex justify-center">
-                    <canvas id="chartRatio"></canvas>
+                    <canvas id="chartHoldings"></canvas>
                 </div>
             </div>
         </div>
@@ -190,6 +195,7 @@
 
         // State
         let currentLang = 'ko';
+        let chartMode = 'all'; // 'all' or 'month'
         let cachedData = null;      
         let localMasterMap = {};    
         let charts = {};
@@ -239,14 +245,12 @@
             btn_upload: { ko: "마스터정보 입력", en: "Import Master Data" },
             btn_download: { ko: "Excel Download (Eng)", en: "Excel Download (Eng)" },
             loading: { ko: "데이터 불러오는 중...", en: "Loading..." },
-            warn_title: { ko: "마스터 정보 없음", en: "No Master Data" },
-            warn_desc: { ko: "그래프에 '미등록(Unregistered)'이 표시됩니다. 상단 [마스터정보 입력]을 눌러 데이터를 저장하세요.", en: "Charts show 'Unregistered'. Please import data." },
-            modal_title: { ko: "마스터 정보 로컬 저장", en: "Save Master Data Locally" },
-            modal_security: { ko: "데이터는 서버로 전송되지 않고 내 PC(IndexedDB)에만 저장됩니다.", en: "Data is stored locally on your PC (IndexedDB) only." },
-            modal_desc: { ko: "엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.", en: "Paste [Passport, Company, Name, Designation] columns here." },
-            btn_close: { ko: "닫기", en: "Close" },
-            btn_save: { ko: "저장하기", en: "Save Locally" },
             
+            sect_month: { ko: "이번 달 현황", en: "This Month Status" },
+            sect_total: { ko: "전체 누적 현황", en: "All Time Status" },
+
+            card_issued_month: { ko: "이번 달 지급", en: "Issued (Month)" },
+            card_used_month: { ko: "이번 달 사용", en: "Redeemed (Month)" },
             card_issued: { ko: "총 지급 코인", en: "Total Issued" },
             card_used: { ko: "총 사용(회수) 코인", en: "Total Redeemed" },
             card_remain: { ko: "시중 유통량", en: "Circulation" },
@@ -254,7 +258,7 @@
             
             chart_general: { ko: "일반 지급 사유", en: "Issued by Reason (General)" },
             chart_hse: { ko: "HSE 지급 사유", en: "Issued by Reason (HSE)" },
-            chart_status: { ko: "발행 vs 회수 비율", en: "Issued vs Redeemed" },
+            chart_holdings: { ko: "협력사별 코인 보유 비율", en: "Active Coin Holdings by Company" },
             chart_trend_worker: { ko: "협력사별 코인 지급 추세(근로자)", en: "Monthly Issuance by Company (Worker)" },
             chart_cumulative: { ko: "협력사별 지급 누적량 (Cumulative)", en: "Cumulative Issuance by Company" },
             
@@ -262,7 +266,13 @@
             th_name: { ko: "협력사명", en: "Company" },
             th_give: { ko: "총 지급 (Give)", en: "Given" },
             th_use: { ko: "총 사용 (Use)", en: "Used" },
-            th_balance: { ko: "현재 잔액", en: "Balance" }
+            th_balance: { ko: "현재 잔액", en: "Balance" },
+
+            modal_title: { ko: "마스터 정보 로컬 저장", en: "Save Master Data Locally" },
+            modal_security: { ko: "데이터는 서버로 전송되지 않고 내 PC(IndexedDB)에만 저장됩니다.", en: "Data is stored locally on your PC (IndexedDB) only." },
+            modal_desc: { ko: "엑셀의 [Passport, Company, Name, Designation] 4개 열을 복사해 붙여넣으세요.", en: "Paste [Passport, Company, Name, Designation] columns here." },
+            btn_close: { ko: "닫기", en: "Close" },
+            btn_save: { ko: "저장하기", en: "Save Locally" },
         };
 
         window.onload = async function() { 
@@ -275,6 +285,21 @@
             currentLang = currentLang === 'ko' ? 'en' : 'ko';
             document.getElementById('langBtnText').innerText = currentLang === 'ko' ? 'EN' : 'KO';
             applyLanguage();
+            if (cachedData) processAndRender(cachedData);
+        }
+
+        function setChartMode(mode) {
+            chartMode = mode;
+            // UI Toggle Style
+            const btnAll = document.getElementById('btnAll');
+            const btnMonth = document.getElementById('btnMonth');
+            if(mode === 'all') {
+                btnAll.className = "px-4 py-1 rounded-md text-sm font-bold bg-white shadow text-gray-800 transition";
+                btnMonth.className = "px-4 py-1 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition";
+            } else {
+                btnAll.className = "px-4 py-1 rounded-md text-sm font-bold text-gray-500 hover:text-gray-700 transition";
+                btnMonth.className = "px-4 py-1 rounded-md text-sm font-bold bg-white shadow text-gray-800 transition";
+            }
             if (cachedData) processAndRender(cachedData);
         }
 
@@ -298,12 +323,6 @@
                 localMasterMap = {};
                 if (results && results.length > 0) {
                     results.forEach(item => { localMasterMap[item.passport] = { company: item.company, name: item.name, desig: item.desig }; });
-                    document.getElementById('cacheStatusBanner').classList.remove('hidden');
-                    document.getElementById('cacheWarningBanner').classList.add('hidden');
-                    document.getElementById('cacheCountText').innerText = `${results.length.toLocaleString()} entries loaded from local cache.`;
-                } else {
-                    document.getElementById('cacheStatusBanner').classList.add('hidden');
-                    document.getElementById('cacheWarningBanner').classList.remove('hidden');
                 }
             } catch (e) { console.error("DB Error", e); }
         }
@@ -345,40 +364,129 @@
             }
         }
 
+        // --- Core Logic ---
+        function checkMasterDataHealth(logs) {
+            let missingCount = 0;
+            // Check for unique passports missing in master
+            const uniquePassports = new Set(logs.map(r => r[3])); // D column
+            uniquePassports.forEach(pp => {
+                if (pp && !localMasterMap[pp]) missingCount++;
+            });
+
+            const banner = document.getElementById('statusBanner');
+            banner.classList.remove('hidden', 'bg-green-50', 'border-green-500', 'bg-red-50', 'border-red-500', 'bg-yellow-50', 'border-yellow-400');
+            
+            if (Object.keys(localMasterMap).length === 0) {
+                // No Master Data
+                banner.classList.add('bg-yellow-50', 'border-yellow-400', 'border-l-4');
+                banner.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i>
+                        <div>
+                            <p class="text-sm text-yellow-700 font-bold">${t.warn_title[currentLang]}</p>
+                            <p class="text-xs text-yellow-600">${t.warn_desc[currentLang]}</p>
+                        </div>
+                    </div>`;
+            } else if (missingCount > 0) {
+                // Data Mismatch (Red)
+                banner.classList.add('bg-red-50', 'border-red-500', 'border-l-4');
+                banner.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-times-circle text-red-500 mr-3"></i>
+                        <div>
+                            <p class="text-sm text-red-700 font-bold">마스터파일 정보 업데이트가 필요합니다.</p>
+                            <p class="text-xs text-red-600">지급 내역에 있는 여권번호 중 ${missingCount}명의 정보를 마스터파일에서 찾을 수 없습니다. 최신 엑셀 파일로 업데이트 해주세요.</p>
+                        </div>
+                    </div>`;
+            } else {
+                // All Good (Green)
+                banner.classList.add('bg-green-50', 'border-green-500', 'border-l-4');
+                banner.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                        <div>
+                            <p class="text-sm text-green-700 font-bold">마스터파일 로드 완료</p>
+                            <p class="text-xs text-green-600">${Object.keys(localMasterMap).length} entries loaded. All active passports matched.</p>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        function isThisMonth(dateStr) {
+            const d = new Date(dateStr);
+            const now = new Date();
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }
+
         function processAndRender(data) {
             const { logs, usage, subcon, categories } = data;
             
-            // KPI
+            // 1. Check Data Integrity
+            checkMasterDataHealth(logs);
+
+            // 2. KPI Calculations
             const totalIssued = logs.length;
             const totalUsed = usage.length;
             const remaining = totalIssued - totalUsed;
             const rate = totalIssued > 0 ? ((totalUsed / totalIssued) * 100).toFixed(1) + "%" : "0%";
 
+            // This Month KPI
+            const monthIssued = logs.filter(r => isThisMonth(r[0])).length;
+            const monthUsed = usage.filter(r => isThisMonth(r[0])).length;
+
             document.getElementById('totalIssued').innerText = totalIssued.toLocaleString();
             document.getElementById('totalUsed').innerText = totalUsed.toLocaleString();
             document.getElementById('currentCirculation').innerText = remaining.toLocaleString();
             document.getElementById('returnRate').innerText = rate;
+            
+            document.getElementById('monthIssued').innerText = monthIssued.toLocaleString();
+            document.getElementById('monthUsed').innerText = monthUsed.toLocaleString();
 
-            // Mapping & Aggregation
+
+            // 3. Mapping & Aggregation
             const permMap = {};
             categories.forEach(row => { if (row[1]) permMap[row[1]] = row[5]; });
 
             const reasonGeneral = {}, reasonHSE = {}, companyTrend = {};
+            const activeCoinsByComp = {}; // For Doughnut
 
+            // Process Logs
             logs.forEach(row => {
                 const ts = new Date(row[0]);
                 const passport = row[3];
-                const reason = row[6];
-                
-                if (permMap[reason] === 'Master') reasonHSE[reason] = (reasonHSE[reason] || 0) + 1;
-                else reasonGeneral[reason] = (reasonGeneral[reason] || 0) + 1;
+                // Column Selection for Reason based on Lang
+                // KO: Bottom_KO(6), EN: Bottom_EN(8)
+                const reasonColIdx = currentLang === 'ko' ? 6 : 8;
+                const reason = row[reasonColIdx] || row[6]; // Fallback to KO
+                const categoryKey = row[6]; // Use original key for permission check
+
+                // Filter for Charts (Toggle)
+                if (chartMode === 'all' || isThisMonth(row[0])) {
+                    if (permMap[categoryKey] === 'Master') reasonHSE[reason] = (reasonHSE[reason] || 0) + 1;
+                    else reasonGeneral[reason] = (reasonGeneral[reason] || 0) + 1;
+                }
 
                 let comp = 'Unregistered';
                 if (localMasterMap[passport]) comp = localMasterMap[passport].company || 'Unknown';
                 
+                // Active Coin Calc (Issued +)
+                activeCoinsByComp[comp] = (activeCoinsByComp[comp] || 0) + 1;
+
                 const yyyymm = ts.toISOString().slice(0, 7);
                 if (!companyTrend[comp]) companyTrend[comp] = {};
                 companyTrend[comp][yyyymm] = (companyTrend[comp][yyyymm] || 0) + 1;
+            });
+
+            // Process Usage (Subtract from Active Coins)
+            usage.forEach(row => {
+                const passport = row[3];
+                let comp = 'Unregistered';
+                if (localMasterMap[passport]) comp = localMasterMap[passport].company || 'Unknown';
+                
+                // Active Coin Calc (Used -)
+                if (activeCoinsByComp[comp]) {
+                    activeCoinsByComp[comp] -= 1;
+                }
             });
 
             // Calculate Cumulative Data
@@ -400,21 +508,29 @@
             // Render Charts
             drawBarChart('chartGeneral', reasonGeneral, 'rgba(59, 130, 246, 0.7)');
             drawBarChart('chartHSE', reasonHSE, 'rgba(239, 68, 68, 0.7)');
-            drawPieChart('chartRatio', totalUsed, remaining);
-            drawLineChart('chartTrend', companyTrend, false); // Monthly
-            drawLineChart('chartCumulative', cumulativeTrend, true); // Cumulative (Fill)
+            
+            // New Holdings Chart (Donut)
+            // Filter out 0 or negative balances for clearer chart
+            const holdingsData = {};
+            Object.keys(activeCoinsByComp).forEach(k => {
+                if(activeCoinsByComp[k] > 0) holdingsData[k] = activeCoinsByComp[k];
+            });
+            drawDoughnutChart('chartHoldings', holdingsData);
+
+            drawLineChart('chartTrend', companyTrend, false); 
+            drawLineChart('chartCumulative', cumulativeTrend, true); 
             drawSubconTable(subcon);
         }
 
         // ===============================================
-        // [수정된 기능] 엑셀 다운로드 (English & 4 Reasons)
+        // Excel Download
         // ===============================================
         function downloadExcel() {
             if (!cachedData) return alert("No Data");
             const { logs, subcon } = cachedData;
             const wb = XLSX.utils.book_new();
 
-            // 1. Raw Data (English Headers) with ALL 4 Reason Columns
+            // 1. Raw Data
             const rawSheetData = logs.map(row => {
                 const passport = row[3];
                 const info = localMasterMap[passport] || { company: "Unregistered", name: "Unregistered", desig: "-" };
@@ -428,10 +544,10 @@
                     "Company": info.company,
                     "Designation": info.desig,
                     "Coin_No": row[4],
-                    "Top_Category(KO)": row[5],   // F열
-                    "Bottom_Category(KO)": row[6], // G열
-                    "Top_Category(EN)": row[7],    // H열
-                    "Bottom_Category(EN)": row[8]  // I열
+                    "Top_Category(KO)": row[5],
+                    "Bottom_Category(KO)": row[6],
+                    "Top_Category(EN)": row[7],
+                    "Bottom_Category(EN)": row[8]
                 };
             });
             const wsRaw = XLSX.utils.json_to_sheet(rawSheetData);
@@ -442,7 +558,7 @@
             rawSheetData.forEach(i => allMonths.add(i.Month));
             const sortedMonths = Array.from(allMonths).sort();
 
-            // 3. Sheet: Monthly Worker Issuance (Pivot)
+            // 3. Sheet: Monthly Worker Issuance
             const pivotWorker = {};
             rawSheetData.forEach(i => {
                 if (!pivotWorker[i.Company]) pivotWorker[i.Company] = {};
@@ -461,10 +577,10 @@
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetWorker), "Worker_Monthly_Trend");
 
-            // 4. Sheet: Monthly Reason Analysis (Pivot - Using EN for global consistency)
+            // 4. Sheet: Reason Analysis (EN)
             const pivotReason = {};
             rawSheetData.forEach(i => {
-                const reasonKey = i["Bottom_Category(EN)"] || i["Bottom_Category(KO)"]; // Use EN, fallback to KO
+                const reasonKey = i["Bottom_Category(EN)"] || i["Bottom_Category(KO)"]; 
                 if (!pivotReason[reasonKey]) pivotReason[reasonKey] = {};
                 pivotReason[reasonKey][i.Month] = (pivotReason[reasonKey][i.Month] || 0) + 1;
             });
@@ -481,21 +597,7 @@
             });
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetReason), "Reason_Analysis");
 
-            // 5. Sheet: Cumulative Worker Issuance
-            const sheetCumulative = Object.keys(pivotWorker).map(comp => {
-                let row = { "Company": comp };
-                let sum = 0;
-                sortedMonths.forEach(m => {
-                    let val = pivotWorker[comp][m] || 0;
-                    sum += val;
-                    row[m] = sum;
-                });
-                row["Grand_Total"] = sum;
-                return row;
-            });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetCumulative), "Worker_Cumulative");
-
-            // 6. Sheet: Subcon Direct Status
+            // 5. Sheet: Subcon Direct Status
             const subconStats = {};
             subcon.forEach(row => {
                 const name = row[2], type = row[3], qty = Number(row[4]) || 0;
@@ -517,17 +619,46 @@
 
         // --- Chart Helpers ---
         function getTopKeys(obj, limit = 5) { return Object.entries(obj).sort((a, b) => b[1] - a[1]).slice(0, limit); }
+        
         function drawBarChart(id, data, color) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
             const sorted = getTopKeys(data, 10);
             charts[id] = new Chart(ctx, { type: 'bar', data: { labels: sorted.map(i => i[0]), datasets: [{ label: 'Count', data: sorted.map(i => i[1]), backgroundColor: color, borderRadius: 4 }] }, options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } } });
         }
-        function drawPieChart(id, used, remaining) {
+
+        function drawDoughnutChart(id, dataObj) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
-            charts[id] = new Chart(ctx, { type: 'doughnut', data: { labels: ['Redeemed', 'Active'], datasets: [{ data: [used, remaining], backgroundColor: ['#EF4444', '#10B981'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+            
+            // Sort by value
+            const sorted = Object.entries(dataObj).sort((a, b) => b[1] - a[1]);
+            const labels = sorted.map(i => i[0]);
+            const values = sorted.map(i => i[1]);
+            
+            // Generate Colors
+            const bgColors = labels.map((_, i) => `hsl(${(i * 360) / labels.length}, 70%, 60%)`);
+
+            charts[id] = new Chart(ctx, { 
+                type: 'doughnut', 
+                data: { 
+                    labels: labels, 
+                    datasets: [{ 
+                        data: values, 
+                        backgroundColor: bgColors,
+                        hoverOffset: 4
+                    }] 
+                }, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 10 } } }
+                    }
+                } 
+            });
         }
+
         function drawLineChart(id, trendData, isCumulative) {
             const ctx = document.getElementById(id).getContext('2d');
             if (charts[id]) charts[id].destroy();
@@ -546,6 +677,7 @@
             });
             charts[id] = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } } });
         }
+
         function drawSubconTable(subconData) {
             const subconStats = {}; 
             subconData.forEach(row => { const name = row[2], type = row[3], qty = Number(row[4]) || 0; if (!subconStats[name]) subconStats[name] = { give: 0, use: 0 }; if (type === 'Give') subconStats[name].give += qty; else if (type === 'Use') subconStats[name].use += qty; });
